@@ -90,7 +90,7 @@ from metrics import (
 # ──────────────────────────────────────────────────────────────────────────────
 
 N_CLASSES   = 8
-CLASS_NAMES = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VL", "SCC"]
+CLASS_NAMES = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
 N_ANNOTATORS = 9   # Matches the Liu et al. (2020) reader study (9 board-certified dermatologists)
 
 # Inter-reader confusion matrix for 8 ISIC skin condition classes.
@@ -143,7 +143,7 @@ class ISIC2019Dataset(Dataset):
             ISIC_0024306.jpg
             ISIC_0024307.jpg
             ...
-        ISIC_2019_Training_GroundTruth.csv   (columns: image,MEL,NV,BCC,AK,BKL,DF,VL,SCC)
+        ISIC_2019_Training_GroundTruth.csv   (columns: image,MEL,NV,BCC,AK,BKL,DF,VASC,SCC,UNK)
 
     The CSV uses one-hot encoding for the ground-truth label.
     """
@@ -181,12 +181,15 @@ class ISIC2019Dataset(Dataset):
                         break
                 else:
                     continue  # skip if image not found
-                # one-hot label → integer
+                # one-hot label → integer (values may be "0.0" / "1.0")
                 label = -1
                 for i, cls in enumerate(CLASS_NAMES):
-                    if row.get(cls, "0").strip() == "1":
-                        label = i
-                        break
+                    try:
+                        if float(row.get(cls, "0")) > 0.5:
+                            label = i
+                            break
+                    except ValueError:
+                        pass
                 if label < 0:
                     continue
                 self.samples.append((p, label))
@@ -208,15 +211,17 @@ class ISIC2019Dataset(Dataset):
         return img, label
 
 
-def get_loaders(data_root: str, batch_size: int = 32, seed: int = 42):
+def get_loaders(data_root: str, batch_size: int = 32, seed: int = 42, arch: str = "efficientnet_b4"):
     """
     Load ISIC 2019, create a stratified 70 / 15 / 15 train / val / test split.
 
     Since the ISIC 2019 challenge test set has no public ground-truth labels,
     we split the labeled training data ourselves.
     """
+    crop_size = 224 if arch == "vit_s16" else 380
+    eval_resize = 256 if arch == "vit_s16" else 400
     tfm_train = T.Compose([
-        T.RandomResizedCrop(380, scale=(0.7, 1.0)),
+        T.RandomResizedCrop(crop_size, scale=(0.7, 1.0)),
         T.RandomHorizontalFlip(),
         T.RandomVerticalFlip(),
         T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
@@ -224,8 +229,8 @@ def get_loaders(data_root: str, batch_size: int = 32, seed: int = 42):
         T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
     tfm_eval = T.Compose([
-        T.Resize(400),
-        T.CenterCrop(380),
+        T.Resize(eval_resize),
+        T.CenterCrop(crop_size),
         T.ToTensor(),
         T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
@@ -285,11 +290,15 @@ def _get_labels(loader: DataLoader) -> np.ndarray:
 # Model
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_model() -> nn.Module:
-    """EfficientNet-B4 pretrained on ImageNet-1k, 8-class head."""
-    model = models.efficientnet_b4(weights=models.EfficientNet_B4_Weights.IMAGENET1K_V1)
-    in_features = model.classifier[1].in_features
-    model.classifier[1] = nn.Linear(in_features, N_CLASSES)
+def build_model(arch: str = "efficientnet_b4") -> nn.Module:
+    """Build pretrained backbone with N_CLASSES head. arch: 'efficientnet_b4' | 'vit_s16'."""
+    if arch == "vit_s16":
+        import timm
+        model = timm.create_model("vit_small_patch16_224", pretrained=True, num_classes=N_CLASSES)
+    else:
+        model = models.efficientnet_b4(weights=models.EfficientNet_B4_Weights.IMAGENET1K_V1)
+        in_features = model.classifier[1].in_features
+        model.classifier[1] = nn.Linear(in_features, N_CLASSES)
     return model
 
 
@@ -443,6 +452,9 @@ def parse_args():
     p.add_argument("--seed",         type=int, default=42)
     p.add_argument("--skip-train",   action="store_true",
                    help="Load cached logits; skip training (requires prior run)")
+    p.add_argument("--arch",         default="efficientnet_b4",
+                   choices=["efficientnet_b4", "vit_s16"],
+                   help="backbone architecture (default: efficientnet_b4)")
     return p.parse_args()
 
 
@@ -456,16 +468,17 @@ def main():
     Path(args.cache_dir).mkdir(parents=True, exist_ok=True)
     Path(args.results_dir).mkdir(parents=True, exist_ok=True)
 
-    ckpt_path        = Path(args.cache_dir) / "isic2019_efficientnet_b4.pt"
-    logits_val_path  = Path(args.cache_dir) / "isic2019_logits_val.npy"
-    logits_test_path = Path(args.cache_dir) / "isic2019_logits_test.npy"
+    arch             = args.arch
+    ckpt_path        = Path(args.cache_dir) / f"isic2019_{arch}.pt"
+    logits_val_path  = Path(args.cache_dir) / f"isic2019_logits_val_{arch}.npy"
+    logits_test_path = Path(args.cache_dir) / f"isic2019_logits_test_{arch}.npy"
     labels_val_path  = Path(args.cache_dir) / "isic2019_labels_val.npy"
     labels_test_path = Path(args.cache_dir) / "isic2019_labels_test.npy"
 
     # ── 1. Data ───────────────────────────────────────────────────────────────
     print("[1/5] Loading ISIC 2019 …")
     train_loader, val_loader, test_loader = get_loaders(
-        args.data_root, args.batch_size, args.seed
+        args.data_root, args.batch_size, args.seed, arch
     )
 
     val_labels  = _get_labels(val_loader)
@@ -484,8 +497,8 @@ def main():
         val_labels  = np.load(labels_val_path)
         test_labels = np.load(labels_test_path)
     else:
-        print(f"[2/5] Fine-tuning EfficientNet-B4 ({args.epochs} epochs on {args.device}) …")
-        model = build_model()
+        print(f"[2/5] Fine-tuning {arch} ({args.epochs} epochs on {args.device}) …")
+        model = build_model(arch)
         model = train_model(model, train_loader, val_loader, device, args.epochs)
         torch.save(model.state_dict(), ckpt_path)
         print("  Extracting logits …")
@@ -636,7 +649,7 @@ def main():
         "n_bins":               n_bins,
         "seed":                 args.seed,
     }
-    out_path = Path(args.results_dir) / "isic2019_results.json"
+    out_path = Path(args.results_dir) / f"isic2019_results_{arch}.json"
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
     print(f"\nResults saved to {out_path}")

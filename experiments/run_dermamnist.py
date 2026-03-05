@@ -119,10 +119,14 @@ def generate_soft_labels(
 # Model
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_model() -> nn.Module:
-    """ResNet-18 pretrained on ImageNet-1k, 7-class head."""
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-    model.fc = nn.Linear(model.fc.in_features, N_CLASSES)
+def build_model(arch: str = "resnet18") -> nn.Module:
+    """Build pretrained backbone with N_CLASSES head. arch: 'resnet18' | 'vit_s16'."""
+    if arch == "vit_s16":
+        import timm
+        model = timm.create_model("vit_small_patch16_224", pretrained=True, num_classes=N_CLASSES)
+    else:
+        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        model.fc = nn.Linear(model.fc.in_features, N_CLASSES)
     return model
 
 
@@ -260,6 +264,9 @@ def parse_args():
     p.add_argument("--seed",        type=int, default=42)
     p.add_argument("--skip-train",  action="store_true",
                    help="Load cached logits without training (fails if cache absent)")
+    p.add_argument("--arch",        default="resnet18",
+                   choices=["resnet18", "vit_s16"],
+                   help="backbone architecture (default: resnet18)")
     return p.parse_args()
 
 
@@ -273,9 +280,10 @@ def main():
     Path(args.cache_dir).mkdir(parents=True, exist_ok=True)
     Path(args.results_dir).mkdir(parents=True, exist_ok=True)
 
-    ckpt_path        = Path(args.cache_dir) / "dermamnist_resnet18.pt"
-    logits_val_path  = Path(args.cache_dir) / "dermamnist_logits_val.npy"
-    logits_test_path = Path(args.cache_dir) / "dermamnist_logits_test.npy"
+    arch             = args.arch
+    ckpt_path        = Path(args.cache_dir) / f"dermamnist_{arch}.pt"
+    logits_val_path  = Path(args.cache_dir) / f"dermamnist_logits_val_{arch}.npy"
+    logits_test_path = Path(args.cache_dir) / f"dermamnist_logits_test_{arch}.npy"
 
     # ── 1. Data ───────────────────────────────────────────────────────────────
     print("[1/5] Loading DermaMNIST …")
@@ -292,8 +300,8 @@ def main():
         logits_val  = np.load(logits_val_path)
         logits_test = np.load(logits_test_path)
     else:
-        print(f"[2/5] Fine-tuning ResNet-18 ({args.epochs} epochs) …")
-        model = build_model()
+        print(f"[2/5] Fine-tuning {arch} ({args.epochs} epochs) …")
+        model = build_model(arch)
         model = train_model(model, train_loader, val_loader, device, args.epochs)
         torch.save(model.state_dict(), ckpt_path)
         print("  Extracting logits …")
@@ -422,7 +430,7 @@ def main():
         "n_bins":           n_bins,
         "seed":             args.seed,
     }
-    out_path = Path(args.results_dir) / "dermamnist_results.json"
+    out_path = Path(args.results_dir) / f"dermamnist_results_{arch}.json"
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
     print(f"\nResults saved to {out_path}")

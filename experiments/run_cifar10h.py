@@ -100,13 +100,17 @@ def get_cifar10_testset(data_root: str):
 # Model
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_model(device: str) -> nn.Module:
+def build_model(device: str, arch: str = "resnet50") -> nn.Module:
     """
-    ResNet-50 pretrained on ImageNet; final FC replaced for CIFAR-10 (10 classes).
-    We fine-tune the full network on CIFAR-10 training set.
+    Build a pretrained ImageNet backbone fine-tuned for CIFAR-10 (10 classes).
+    arch: 'resnet50' | 'vit_b16'
     """
-    model = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
-    model.fc = nn.Linear(model.fc.in_features, N_CLASSES)
+    if arch == "vit_b16":
+        import timm
+        model = timm.create_model("vit_base_patch16_224", pretrained=True, num_classes=N_CLASSES)
+    else:
+        model = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
+        model.fc = nn.Linear(model.fc.in_features, N_CLASSES)
     return model.to(device)
 
 
@@ -222,6 +226,7 @@ def run_experiment(args):
     n_bins      = args.n_bins
     seed        = args.seed
     epochs      = args.epochs
+    arch        = args.arch
 
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
     Path(results_dir).mkdir(parents=True, exist_ok=True)
@@ -235,17 +240,17 @@ def run_experiment(args):
     hard_labels = np.array([y for _, y in testset])            # (10000,)
 
     # ── 2. Model ──────────────────────────────────────────────────────────────
-    print("\n[2/6] Preparing model …")
-    model = build_model(device)
-    ckpt  = os.path.join(cache_dir, "resnet50_cifar10.pth")
+    print(f"\n[2/6] Preparing model ({arch}) …")
+    model = build_model(device, arch)
+    ckpt  = os.path.join(cache_dir, f"{arch}_cifar10.pth")
     model = fine_tune_on_cifar10(
         model, os.path.join(cache_dir, "cifar10"),
         device, epochs=epochs, checkpoint_path=ckpt,
     )
 
     # ── 3. Logits ─────────────────────────────────────────────────────────────
-    print("\n[3/6] Extracting logits on CIFAR-10 test set …")
-    logits_cache = os.path.join(cache_dir, "logits_test.npy")
+    print(f"\n[3/6] Extracting logits on CIFAR-10 test set …")
+    logits_cache = os.path.join(cache_dir, f"logits_test_{arch}.npy")
     logits_all   = extract_logits(model, testset, device, cache_path=logits_cache)
     probs_all    = torch.softmax(torch.tensor(logits_all), dim=1).numpy()
 
@@ -390,7 +395,7 @@ def run_experiment(args):
         "n_bins":         n_bins,
         "seed":           seed,
     }
-    out_path = Path(results_dir) / "cifar10h_results.json"
+    out_path = Path(results_dir) / f"cifar10h_results_{arch}.json"
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nResults saved → {out_path}")
@@ -411,6 +416,9 @@ def parse_args():
     p.add_argument("--device",      default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs",      type=int, default=30,
                    help="fine-tuning epochs (ignored if checkpoint already exists)")
+    p.add_argument("--arch",        default="resnet50",
+                   choices=["resnet50", "vit_b16"],
+                   help="backbone architecture (default: resnet50)")
     return p.parse_args()
 
 
