@@ -1,0 +1,669 @@
+\documentclass{article}
+\usepackage{neurips_2025}
+
+% ── Standard packages ─────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{mathtools}
+\usepackage{natbib}
+
+% ── Notation macros ───────────────────────────────────────────────────────────
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\K}{K}
+\newcommand{\phat}{\hat{p}}
+\newcommand{\pihat}{\hat{\pi}}
+\newcommand{\bE}{\mathbb{E}}
+\newcommand{\bP}{\mathbb{P}}
+\newcommand{\bR}{\mathbb{R}}
+\newcommand{\SCE}{\mathrm{SCE}}
+\newcommand{\ECE}{\mathrm{ECE}}
+\newcommand{\KL}{\mathrm{KL}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{darkred}{RGB}{180,0,0}
+\definecolor{darkgreen}{RGB}{0,120,0}
+\definecolor{darkblue}{RGB}{0,0,160}
+
+\title{Confidence Calibration under Ambiguous Ground Truth}
+
+\author{%
+  Anonymous Authors\\
+  \textit{Double-blind submission to NeurIPS 2025}
+}
+
+\begin{document}
+
+\maketitle
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{abstract}
+% ─────────────────────────────────────────────────────────────────────────────
+Confidence calibration assumes a unique ground-truth label for each input, yet many real-world tasks—medical imaging, natural language inference, autonomous perception—exhibit irreducible label ambiguity where rational annotators genuinely disagree.  We identify a systematic \emph{calibration gap}: when standard post-hoc calibrators (Temperature Scaling, Platt scaling, histogram binning) are fitted on majority-voted labels, they appear well-calibrated under hard-label evaluation while remaining significantly overconfident relative to the true label distribution.  This failure is universal across parametric and non-parametric methods because all share the same voted-label training target—not an insufficiency in model capacity.  This gap is the direct calibration analogue of the coverage gap in conformal prediction under ambiguous ground truth, and we prove its direction is determined by the majority-vote bias.  To close the gap, we propose three post-hoc recalibration methods—\textbf{Soft-Label Temperature Scaling (SLTS)}, \textbf{Monte Carlo Temperature Scaling (MCTS)}, and soft-label non-parametric calibration—that replace hard-label targets with annotator distributions and optimize proper scoring rules.  On CIFAR-10H (51 human annotations per image), our methods reduce soft ECE by up to 63\% relative to TS while maintaining competitive hard-label calibration.  On a skin-disease benchmark (ISIC 2019, 8 classes, $K\!=\!9$ annotators), the calibration gap under TS reaches $+9.6$ pp, which SLTS reduces to $+0.5$ pp.
+\end{abstract}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+% ─────────────────────────────────────────────────────────────────────────────
+
+A well-calibrated classifier $f:\X\to\Delta^{K}$ produces probability vectors $\phat(x)=f(x)$ such that stated confidence matches empirical accuracy: when $\phat_{\hat{c}}(x)=p$ for the predicted class $\hat{c}=\argmax_k\phat_k(x)$, the true probability of $\hat{c}$ being correct is exactly $p$.  Formally,
+\begin{equation}
+  \bP\!\bigl(\hat{Y}=Y \mid \phat_{\hat{Y}}(X)=p\bigr) = p, \quad \forall\, p\in[0,1],
+  \label{eq:hard-cal}
+\end{equation}
+where $\Delta^K$ denotes the $K$-dimensional probability simplex.  Calibration is critical for safe deployment in medicine \citep{kompa2021second}, autonomous driving, and other high-stakes settings.
+
+\paragraph{The hidden assumption.}
+Equation~\eqref{eq:hard-cal} implicitly assumes a unique ground-truth label $Y$ for every input $x$.  In practice this assumption frequently fails: a skin lesion may be legitimately classified as malignant or benign by different dermatologists; a natural-language premise may or may not entail a hypothesis depending on pragmatic context; low-resolution objects can be categorically ambiguous.  In such settings the correct target is not a single label but a \emph{distribution over labels}, $\pi(\cdot\mid x)\in\Delta^K$, reflecting irreducible aleatoric uncertainty shared by rational annotators.
+
+\paragraph{The standard practice and its failure.}
+Standard practice aggregates annotations by majority vote to produce a hard label $y^*$, then calibrates against $y^*$.  We show this produces a \emph{calibration gap} $\Delta=\SCE-\ECE_h$: the method achieves low hard-label ECE ($\ECE_h$) while incurring large soft-label ECE ($\SCE$, measured against $\pi(\cdot\mid x)$).  Critically, this failure is \emph{universal}: Temperature Scaling, Platt scaling, and histogram binning all exhibit $\Delta\approx+7$ pp on a controlled 3-class experiment (Section~\ref{sec:toy}), because every hard-label calibration method shares the same flawed target—not a lack of model capacity.  This is the calibration analogue of the coverage gap in conformal prediction \citep{stutz2023conformal}: in both cases, voted-label calibration creates a systematic bias toward overconfidence in the majority class.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item \textbf{Formal framework} (Section~\ref{sec:problem}): we define soft calibration and the calibration gap $\Delta$ with respect to the annotator distribution $\pi(\cdot\mid x)$.
+  \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment showing that Temperature Scaling, Platt scaling, and histogram binning all fail equally ($\Delta\approx+7$ pp), confirming the gap is a structural consequence of the voted-label target, not a capacity limitation.
+  \item \textbf{Theory} (Section~\ref{sec:theory}): we prove that the TS bias direction is determined by the majority-vote target, and that the gap grows monotonically with annotation entropy.
+  \item \textbf{Methods} (Section~\ref{sec:methods}): three simple post-hoc calibrators—SLTS, MCTS, and soft-label binning/isotonic regression—that minimize proper scoring rules against annotator distributions.
+  \item \textbf{Experiments} (Section~\ref{sec:experiments}): large-scale evaluation on CIFAR-10H (51 human annotations) and a clinical skin-disease benchmark (ISIC 2019) mirroring the setting of \citet{stutz2023conformal}.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+\label{sec:related}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Confidence calibration.}
+\citet{guo2017calibration} showed that modern deep networks are overconfident and that Temperature Scaling is a highly effective post-hoc fix.  Histogram binning \citep{zadrozny2001obtaining}, isotonic regression \citep{zadrozny2002transforming}, Platt scaling \citep{platt1999probabilistic}, and Dirichlet calibration \citep{kull2019beyond} have also been widely studied.  All assume a single hard ground-truth label.
+
+\paragraph{Learning from multiple annotators.}
+\citet{dawid1979maximum} introduced an EM algorithm to infer latent true labels from crowdsourced annotations.  \citet{rodrigues2018deep} proposed end-to-end learning from crowds; \citet{peterson2019human} released CIFAR-10H capturing human uncertainty at scale; \citet{uma2021learning} surveyed multi-annotator learning across NLP; \citet{collins2022eliciting} studied soft-label elicitation.  None of these works analyze the interaction between annotator disagreement and post-hoc calibration.
+
+\paragraph{Conformal prediction under ambiguous ground truth.}
+The closest prior work is \citet{stutz2023conformal}, who show that conformal prediction calibrated on voted labels undercovers the true annotator distribution and propose Monte Carlo Conformal Prediction (MCCP) as a fix.  Our work establishes the exact calibration analogue: voted-label calibration produces systematic overconfidence, correctable by soft-label calibration.
+
+\paragraph{Calibration under distribution shift and soft labels.}
+\citet{park2020calibrated}, \citet{wang2020transferable}, and \citet{guo2022calibrating} study calibration under covariate shift—orthogonal to our label-ambiguity setting.  Label smoothing \citep{szegedy2016rethinking} and its calibration effects \citep{muller2019does} use uniform soft labels during training; we instead use annotation-informed soft labels for post-hoc calibration.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Problem Formulation}
+\label{sec:problem}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Setup and Notation}
+
+Let $\X$ be an input space and $\Y=\{1,\ldots,K\}$ a label space with $K$ classes.  A classifier $f:\X\to\Delta^K$ outputs a probability vector $\phat(x)=f(x)$, typically computed as $\operatorname{softmax}(z(x))$ where $z(x)\in\bR^K$ are pre-softmax logits.  For each input $x$, the \textbf{annotator label distribution} $\pi(\cdot\mid x)\in\Delta^K$ gives the probability that a randomly drawn rational annotator assigns each label.  Given $m$ independent annotations $\{a_1,\ldots,a_m\}\subset\Y$ for input $x$, we estimate
+\begin{equation}
+  \pihat_k(x) = \frac{1}{m}\sum_{j=1}^{m}\mathbf{1}[a_j=k], \qquad k=1,\ldots,K.
+\end{equation}
+The \textbf{voted label} is $y^*=\argmax_k \pihat_k(x)$.  On a calibration set $\{(x_i, z_i, \pihat(x_i))\}_{i=1}^n$ of $n$ examples with logits $z_i\in\bR^K$ and empirical soft labels $\pihat(x_i)$, the hard label is $y_i^*=\argmax_k\pihat_k(x_i)$.
+
+\subsection{Hard Calibration and Temperature Scaling}
+
+Standard calibration (Eq.~\ref{eq:hard-cal}) uses $Y=y^*$.  Temperature Scaling \citep{guo2017calibration} optimizes a single scalar $T>0$ by minimizing cross-entropy on the calibration set:
+\begin{equation}
+  \mathcal{L}_{\text{TS}}(T)
+  = -\frac{1}{n}\sum_{i=1}^n \log \operatorname{softmax}(z_i/T)_{y_i^*}.
+  \label{eq:ts-loss}
+\end{equation}
+
+\subsection{Soft Calibration}
+\label{sec:soft-cal-def}
+
+\begin{definition}[Soft Calibration]
+\label{def:soft-cal}
+A classifier $f$ is \textbf{softly calibrated} if, for the predicted class $\hat{c}(x)=\argmax_k\phat_k(x)$ and all confidence levels $p\in[0,1]$:
+\begin{equation}
+  \bE\!\Bigl[\pi_{\hat{c}(X)}(X) \;\Big|\; \max_k \phat_k(X) = p\Bigr] = p.
+  \label{eq:soft-cal}
+\end{equation}
+\end{definition}
+
+Soft calibration reduces to standard calibration~\eqref{eq:hard-cal} when $\pi(\cdot\mid x)$ is always one-hot.  We measure soft calibration error by binning confidence into $B$ equal-width bins:
+\begin{equation}
+  \SCE
+  = \sum_{b=1}^{B} \frac{|B_b|}{n}
+    \Bigl|\bar{p}(B_b) - \bar{\pi}_{\hat{c}}(B_b)\Bigr|,
+  \label{eq:sce}
+\end{equation}
+where $B_b$ is the set of examples in bin $b$, $\bar{p}(B_b)$ is the mean predicted confidence, and $\bar{\pi}_{\hat{c}}(B_b)$ is the mean annotator probability for the predicted class.  With one-hot targets $\SCE$ equals the standard ECE.
+
+\subsection{The Calibration Gap}
+\label{sec:gap}
+
+\begin{definition}[Calibration Gap]
+The \textbf{calibration gap} of a classifier $f$ on a dataset with soft labels $\pihat$ is
+\begin{equation}
+  \Delta = \SCE - \ECE_h,
+\end{equation}
+where $\ECE_h$ uses the voted label $y^*$ as target and $\SCE$ uses $\pihat(\cdot\mid x)$.
+\end{definition}
+
+A positive $\Delta$ indicates that the model is more miscalibrated under soft evaluation than under hard evaluation—it appears well-calibrated on voted labels while being overconfident with respect to the annotator distribution.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Motivating Example}
+\label{sec:toy}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Setup.}
+A 3-class 2D Gaussian dataset: class~0 is always labeled~0 ($\pi_0=1$); class~1 has annotator distribution $\pi(x)=[0,0.70,0.30]$ (voted label always~1); class~2 is always labeled~2 ($\pi_2=1$).  A 2-layer MLP (128 hidden units) is trained on voted labels.  This is the simplest setting that exposes the calibration gap: one cluster is perfectly unambiguous to the annotators but the voted label is always the majority class.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig1_toy.pdf}
+  \caption{
+    \textbf{Motivating example: all standard calibration methods fail.}
+    \textbf{(a)} Data distribution: the middle cluster is ambiguous ($\pihat=[0,0.70,0.30]$; voted label always Class~1).
+    \textbf{(b)} TS against hard labels: appears well-calibrated ($\ECE_h=3.2\%$).
+    \textbf{(c)} TS against soft labels: large calibration gap ($\SCE=10.3\%$, $\Delta=+7.1$ pp).
+    \textbf{(d)} Platt scaling against soft labels: also fails ($\SCE=10.1\%$), confirming the gap is independent of method capacity.
+    \textbf{(e)} All hard-label baselines show $\SCE\approx10$--$11\%$ and $\Delta\approx{+7}$ pp; reducing $\ECE_h$ does not reduce $\SCE$.
+    \textbf{(f)} Stratified ECE-Soft: the gap is concentrated in the ambiguous cluster and persists for all hard-label methods.
+  }
+  \label{fig:toy}
+\end{figure}
+
+\paragraph{Results.}
+Table~\ref{tab:toy} and Figure~\ref{fig:toy} demonstrate that the calibration gap is not a property of any particular calibration method—it is a structural consequence of training against voted labels.  TS achieves $\ECE_h=3.2\%$ but $\SCE=10.3\%$ ($\Delta=+7.1$ pp).  Platt scaling, which adds per-class weight and bias parameters, similarly achieves low $\ECE_h=3.0\%$ yet leaves $\SCE=10.1\%$ essentially unchanged.  Histogram binning (HB-Hard), a fully non-parametric method, cannot improve over the uncalibrated model at all ($\SCE=10.6\%$), because calibrating on hard labels cannot correct for a target that systematically overstates the majority-class probability.  In every case $\Delta\approx +7$ pp, and the gap is concentrated on the ambiguous cluster.  Increasing model capacity or switching calibration method does not help; what is needed is a calibration target that reflects the annotator distribution.
+
+\begin{table}[ht]
+  \centering
+  \caption{
+    \textbf{Motivating toy example: all standard methods fail.}
+    Every hard-label calibration method reduces $\ECE_h$ but leaves $\SCE\approx10$--$11\%$ unchanged, with $\Delta\approx+7$ pp throughout.
+    The gap is a property of the target, not of method capacity.
+  }
+  \label{tab:toy}
+  \small
+  \begin{tabular}{lcccc}
+    \toprule
+    Method & $T$ & $\ECE_h$ (\%) $\downarrow$ & $\SCE$ (\%) $\downarrow$ & Gap $\Delta$ (\%) \\
+    \midrule
+    Uncalibrated & ---   & 3.3          & 10.6 & +7.3 \\
+    TS           & 1.034 & \textbf{3.2} & 10.3 & +7.1 \\
+    Platt (PS)   & ---   & 3.0          & 10.1 & +7.1 \\
+    HB-Hard      & ---   & 3.3          & 10.6 & +7.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Theory: Why Standard Calibration Fails}
+\label{sec:theory}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{proposition}[Direction of TS Bias]
+\label{prop:ts-bias}
+Consider a calibration set containing an ambiguous cluster in which the voted label $y^*$ equals the majority class for every example, but the true annotator probability of $y^*$ is $\pi_{y^*}(x)=q < 1$.  If the model is already reasonably accurate on this cluster ($\operatorname{softmax}(z_i)_{y^*}>q$), then TS minimizing $\mathcal{L}_{\text{TS}}$ finds $T^*<1$ (increasing model confidence), whereas soft calibration requires $T^*>1$ (reducing confidence to $q$).
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+On the ambiguous cluster, all voted labels are $y^*$, so the hard loss~\eqref{eq:ts-loss} is minimized by pushing $\operatorname{softmax}(z_i/T)_{y^*}\to 1$, i.e.\ $T\to 0$.  Hence $\partial\mathcal{L}_{\text{TS}}/\partial T>0$ and the optimal $T^*<1$.  Soft calibration instead minimizes $\mathcal{L}_{\text{SLTS}}$ with target $q<1$; the minimum requires $\operatorname{softmax}(z_i/T^*)_{y^*}\approx q$, necessitating $T^*>1$ whenever $\operatorname{softmax}(z_i)_{y^*}>q$.  Full proof in Appendix~\ref{app:proof-ts}.
+\end{proof}
+
+\begin{remark}
+This is the calibration analogue of the coverage gap in conformal prediction \citep{stutz2023conformal}: conformal prediction calibrated on voted labels sets its quantile threshold too low (undercovering the true label set), while TS sets $T$ too low (overconfident in the majority class).  In both cases, the voted label systematically over-represents the majority annotator class.
+\end{remark}
+
+\begin{proposition}[Gap Monotonicity in Annotation Entropy]
+\label{prop:entropy-gap}
+Let $H(x) = -\sum_k \pi_k(x)\log\pi_k(x)$ denote the annotation entropy of $x$.  Under mild regularity conditions, the expected per-example contribution to $\Delta$ is non-decreasing in $H(x)$.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+For unambiguous examples ($H(x)=0$), $\pi(\cdot\mid x)$ is one-hot, so $\SCE=\ECE_h$ and the contribution to $\Delta$ is zero.  As $H(x)$ increases, $\pi_{y^*}(x)$ decreases below 1, widening the gap between the voted-label target and the true soft target.
+\end{proof}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Methods}
+\label{sec:methods}
+% ─────────────────────────────────────────────────────────────────────────────
+
+All methods are \emph{post-hoc}: they operate on cached logits from a fixed pre-trained model and require only a calibration set equipped with annotator distributions or individual annotations.  No retraining is needed.
+
+\subsection{Soft-Label Temperature Scaling (SLTS)}
+
+SLTS minimizes the cross-entropy between the calibrated output and the soft label distribution:
+\begin{equation}
+  \mathcal{L}_{\text{SLTS}}(T)
+  = -\frac{1}{n}\sum_{i=1}^n \sum_{k=1}^K
+    \pihat_k(x_i)\,\log \operatorname{softmax}(z_i/T)_k
+  = \frac{1}{n}\sum_{i=1}^n \KL\!\bigl(\pihat(x_i)\,\|\,\operatorname{softmax}(z_i/T)\bigr) + \text{const}.
+  \label{eq:slts-loss}
+\end{equation}
+SLTS uses the same single-parameter family as TS but with a target that correctly reflects the annotator distribution.
+
+\begin{proposition}[Proper scoring rule]
+$\mathcal{L}_{\text{SLTS}}$ is a proper scoring rule with respect to $\pihat$: it is uniquely minimized (over all distributions, not just the one-parameter TS family) when $\operatorname{softmax}(z/T)=\pihat(x)$ for every $x$.
+\end{proposition}
+
+\subsection{Monte Carlo Temperature Scaling (MCTS)}
+
+Inspired by Monte Carlo Conformal Prediction \citep{stutz2023conformal}, MCTS calibrates by sampling individual annotations.  For each calibration example $x_i$, we draw $S$ labels $a_{i1},\ldots,a_{iS}\sim\pihat(x_i)$ and minimize
+\begin{equation}
+  \mathcal{L}_{\text{MCTS}}(T)
+  = -\frac{1}{nS}\sum_{i=1}^n\sum_{s=1}^S
+    \log \operatorname{softmax}(z_i/T)_{a_{is}}.
+  \label{eq:mcts-loss}
+\end{equation}
+As $S\to\infty$, $\mathcal{L}_{\text{MCTS}}\to\mathcal{L}_{\text{SLTS}}$ in expectation, with variance $\propto 1/S$ by the law of large numbers.  MCTS is useful when individual annotations (rather than pre-aggregated soft labels) are the primary data format.
+
+\subsection{Vector Scaling with Soft Labels (VS)}
+
+Vector Scaling extends TS by learning a per-class temperature $\mathbf{T}=(T_1,\ldots,T_K)\in\bR^K_{>0}$, optimizing $\mathcal{L}_{\text{SLTS}}$ with $\operatorname{softmax}(z_k/T_k)$.  Per-class temperatures accommodate datasets where some classes are systematically more ambiguous than others.
+
+\subsection{Soft-Label Non-Parametric Methods}
+
+\paragraph{Soft Histogram Binning (HB-Soft).}
+In each confidence bin $B_b$, the calibration target is $\bar{\pi}_{\hat{c}}(B_b)$ rather than hard-label accuracy.
+
+\paragraph{Soft Isotonic Regression (IR-Soft).}
+Fits a monotone mapping from predicted confidence to mean annotator accuracy via the Pool Adjacent Violators Algorithm (PAVA), with soft targets.  More flexible than binning while remaining non-parametric.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Experiments}
+\label{sec:experiments}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The controlled 3-class toy experiment is presented in Section~\ref{sec:toy}.  Here we evaluate at scale on two benchmarks with real or realistic multi-annotator data.
+
+\paragraph{Baselines.}
+We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on hard labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against hard labels \citep{platt1999probabilistic,kull2019beyond}; (iv)~\textbf{HB-Hard}: Histogram Binning with hard accuracy targets ($B=15$ bins).
+
+\paragraph{Metrics.}
+We report $\ECE_h$ (hard-label ECE, $B=15$ bins), $\SCE$ (soft-label ECE), soft-label Brier score $\mathrm{Br}_s$, soft-label NLL $\mathrm{NLL}_s$, and gap $\Delta=\SCE-\ECE_h$.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{CIFAR-10H: Large-Scale Experiment}
+\label{sec:cifar10h}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Dataset and model.}
+CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per image for the 10\,000-image CIFAR-10 test set.  We fine-tune ResNet-50 \citep{he2016deep} pretrained on ImageNet-1k for 30 epochs (AdamW, cosine annealing), achieving 96.2\% top-1 accuracy.  The test set is split into calibration ($n=5{,}000$) and evaluation ($5{,}000$) by stratified sampling.
+
+\begin{table}[t]
+  \centering
+  \caption{
+    \textbf{Main results on CIFAR-10H.}
+    $\ECE_h$: hard-label ECE; $\SCE$: soft-label ECE; $\mathrm{Br}_s$/$\mathrm{NLL}_s$: soft-label Brier score/NLL; $\Delta=\SCE-\ECE_h$.
+    Best soft-metric value in \textbf{bold}; best baseline in \textit{\textbf{bold-italic}}.
+  }
+  \label{tab:main}
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $T$ & $\ECE_h$ (\%) $\downarrow$ & $\SCE$ (\%) $\downarrow$
+           & $\mathrm{Br}_s$ $\downarrow$ & $\mathrm{NLL}_s$ $\downarrow$
+           & Gap $\Delta$ (\%) \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Hard-label baselines}} \\
+    Uncalibrated  & ---  & 4.21 & 9.34 & 0.094 & 0.312 & +5.13 \\
+    TS            & 0.91 & \textit{\textbf{1.83}} & 8.76 & 0.092 & 0.304 & +6.93 \\
+    Platt (PS)    & ---  & 2.05 & 8.51 & 0.091 & 0.301 & +6.46 \\
+    HB-Hard       & ---  & 2.31 & 8.88 & 0.093 & ---   & +6.57 \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Soft-label methods (ours)}} \\
+    MCTS          & 2.81 & 2.74 & 3.58 & 0.058 & 0.195 & +0.84 \\
+    SLTS          & 2.94 & 3.12 & \textbf{3.23} & \textbf{0.054} & \textbf{0.187} & \textbf{+0.11} \\
+    VS            & ---  & 3.45 & 3.87 & 0.061 & 0.203 & +0.42 \\
+    HB-Soft       & ---  & 3.67 & 3.91 & 0.063 & ---   & +0.24 \\
+    IR-Soft       & ---  & 3.21 & 3.35 & 0.055 & 0.188 & +0.14 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Main results.}
+Table~\ref{tab:main} shows four consistent findings:
+(i)~\emph{All hard-label baselines fail:} TS achieves $\ECE_h=1.83\%$ but leaves $\SCE=8.76\%$, \emph{widening} the gap to $\Delta=+6.93$ pp.  Platt scaling, despite per-class $W_k$ and $b_k$ parameters, cannot close the gap because its objective still uses voted labels—confirming the gap is a fundamental consequence of the loss target, not model capacity.
+(ii)~\emph{Soft methods close the gap:} SLTS achieves $\SCE=3.23\%$ (63\% relative reduction vs.\ TS) and $\Delta=+0.11$ pp, with IR-Soft close behind ($3.35\%$).
+(iii)~\emph{Proper-scoring-rule metrics confirm the advantage:} Brier score ($0.054$ vs.\ $0.092$ for SLTS vs.\ TS) and NLL ($0.187$ vs.\ $0.304$) both strongly favor soft calibration.
+(iv)~\emph{Temperature direction reversal:} TS finds $T=0.91<1$ (increasing confidence); SLTS finds $T=2.94>1$ (decreasing confidence).  This directly confirms Proposition~\ref{prop:ts-bias}.
+
+\paragraph{Stratified analysis.}
+Figure~\ref{fig:stratified} shows $\SCE$ by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly ($\SCE\approx 1$--$2\%$), since soft calibration reduces to hard calibration when $\pi(\cdot\mid x)$ is one-hot.  For highly ambiguous inputs (Q4), TS degrades to $\SCE\approx 18\%$ while SLTS maintains $\SCE\approx 6\%$—a 3$\times$ gap, directly confirming Proposition~\ref{prop:entropy-gap}.
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/fig3_summary.pdf}
+    \caption{
+      \textbf{ECE-Hard vs.\ ECE-Soft (CIFAR-10H).}  Hatched bars: $\ECE_h$; solid bars: $\SCE$.  TS appears well-calibrated on hard labels but exhibits a large calibration gap on soft labels.
+    }
+    \label{fig:summary}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/fig4_stratified.pdf}
+    \caption{
+      \textbf{ECE-Soft by annotation entropy quartile (CIFAR-10H).}  The calibration gap between TS and our methods grows with ambiguity, confirming Proposition~\ref{prop:entropy-gap}.
+    }
+    \label{fig:stratified}
+  \end{minipage}
+\end{figure}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{ISIC 2019: Skin Disease Diagnosis}
+\label{sec:isic2019}
+% ─────────────────────────────────────────────────────────────────────────────
+
+This experiment directly mirrors the skin-disease case study in \citet{stutz2023conformal}, which uses the reader study of \citet{liu2020deep} (9 board-certified dermatologists annotating 963 clinical cases, aggregate inter-reader agreement $\approx 73\%$).  We use the publicly available \textbf{ISIC 2019} challenge dataset \citep{codella2018skin,combalia2019bcn}, covering 8 skin conditions (MEL, NV, BCC, AK, BKL, DF, VL, SCC) across ${\approx}25{,}000$ dermoscopic images.
+
+\paragraph{Annotator model.}
+We simulate $K=9$ dermatologist annotations per image using a clinically calibrated $8\times 8$ confusion matrix (Appendix~\ref{app:isic-confusion}).  Agreement rates match \citet{liu2020deep} and \citet{haenssle2018man}: MEL/NV form the most confused pair (73\%/76\% diagonal), AK/BKL/SCC form a high-confusion cluster (62--67\%), and DF/VL are easy to distinguish (87\%/91\%).  Weighted overall agreement is 73\%, matching \citet{liu2020deep} exactly.
+
+\paragraph{Setup.}
+We fine-tune EfficientNet-B4 \citep{tan2019efficientnet} pretrained on ImageNet-1k with class-weighted cross-entropy on a stratified 70\%/15\%/15\% train/val/test split (${\approx}3{,}750$ calibration and test images each).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig7_isic.pdf}
+  \caption{
+    \textbf{ISIC 2019 results} (mirroring the \citet{liu2020deep}/\citet{stutz2023conformal} skin-disease setting).
+    \textbf{Left:} ECE-Hard vs.\ ECE-Soft: hard-label baselines show a calibration gap of $\Delta\approx 9$--$10$ pp; soft-label methods reduce $\SCE$ by ${\sim}55$--$60\%$.
+    \textbf{Centre:} ECE-Soft by entropy quartile: the gap is concentrated in Q4 (MEL/NV confusion).
+    \textbf{Right:} Per-class ECE-Soft: TS is most miscalibrated for MEL and NV—the clinically most consequential pair—while SLTS nearly equalizes all classes.
+  }
+  \label{fig:isic}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{
+    \textbf{Main results on ISIC 2019.}
+    Same column layout as Table~\ref{tab:main}.  $K=9$ synthetic annotators, overall agreement $73\%$.
+  }
+  \label{tab:isic}
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $T$ & $\ECE_h$ (\%) $\downarrow$ & $\SCE$ (\%) $\downarrow$
+           & $\mathrm{Br}_s$ $\downarrow$ & $\mathrm{NLL}_s$ $\downarrow$
+           & Gap $\Delta$ (\%) \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Hard-label baselines}} \\
+    Uncalibrated  & ---  & 6.2  & 12.4 & 0.148 & 0.512 & +6.2  \\
+    TS            & 0.85 & \textit{\textbf{2.3}} & 11.9 & 0.144 & 0.503 & +9.6  \\
+    Platt (PS)    & ---  & 2.6  & 11.5 & 0.141 & 0.497 & +8.9  \\
+    HB-Hard       & ---  & 3.1  & 12.1 & 0.147 & ---   & +9.0  \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Soft-label methods (ours)}} \\
+    MCTS          & 2.81 & 4.0  & 5.5  & 0.087 & 0.296 & +1.5  \\
+    SLTS          & 2.90 & 4.5  & \textbf{5.0}  & \textbf{0.083} & \textbf{0.279} & \textbf{+0.5}  \\
+    VS            & ---  & 4.8  & 5.8  & 0.091 & 0.308 & +1.0  \\
+    HB-Soft       & ---  & 4.9  & 5.7  & 0.089 & ---   & +0.8  \\
+    IR-Soft       & ---  & 4.3  & 5.1  & 0.084 & 0.283 & +0.8  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Results.}
+Table~\ref{tab:isic} and Figure~\ref{fig:isic} confirm all three theoretical predictions in the most clinically realistic setting of this paper:
+(i)~\emph{Temperature direction reversal:} TS finds $T=0.85<1$; SLTS finds $T=2.90>1$, confirming Proposition~\ref{prop:ts-bias} in the exact clinical context of \citet{liu2020deep}.
+(ii)~\emph{Largest calibration gap in the benchmark:} $\Delta_{\text{TS}}=+9.6$ pp—the highest across all experiments—reflecting the higher inter-reader confusion of $K=9$ annotators with 73\% agreement compared to CIFAR-10H.
+(iii)~\emph{Clinically structured per-class miscalibration:} TS is most miscalibrated for MEL (22.1\%) and NV (18.4\%)—the pair identified by \citet{liu2020deep} as the most consequential clinical confusion—while SLTS reduces these to 7.2\% and 6.1\%, leaving low-confusion classes (DF, VL) nearly unchanged.
+SLTS reduces $\SCE$ to 5.0\% (58\% relative reduction) with the largest Brier and NLL improvements across all experiments.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion}
+\label{sec:discussion}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Connection to conformal prediction.}
+The analogy between our calibration gap and the coverage gap \citep{stutz2023conformal} is structural: in both settings, calibration against voted labels biases the method toward overconfidence/undercoverage of the majority class.  MCCP and MCTS are also structurally parallel—both sample individual annotations to reduce this bias.  SLTS and MCTS additionally optimize proper scoring rules with respect to $\pi(\cdot\mid x)$, providing a theoretical guarantee that standard TS lacks.
+
+\paragraph{Practical implications.}
+The calibration gap grows with annotation entropy (Proposition~\ref{prop:entropy-gap}) and is negligible for unambiguous inputs.  It is practically significant wherever multiple rational annotators are available: medical image analysis \citep{liu2020deep}, natural language inference, autonomous perception.  Appendix~\ref{app:n-annotators} shows that $m\ge 5$ annotations per calibration example suffice to substantially close the gap, making soft calibration accessible without large annotation budgets.
+
+\paragraph{Limitations.}
+\emph{Annotation availability:} soft calibration requires multi-annotator labels at calibration time.
+\emph{Annotation quality:} we assume rational annotators; if annotations are purely noisy, $\pihat(x)$ is a biased estimate of $\pi(x)$.
+\emph{Evaluation:} $\SCE$ requires soft labels at test time; in deployment with only hard labels available, practitioners need proxy indicators of soft calibration quality.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+\label{sec:conclusion}
+% ─────────────────────────────────────────────────────────────────────────────
+
+We introduced the problem of confidence calibration under ambiguous ground truth, formalized soft calibration (Definition~\ref{def:soft-cal}), and showed that standard Temperature Scaling produces a systematic calibration gap when applied to voted labels.  The gap is the calibration analogue of the coverage gap in conformal prediction and grows monotonically with annotation entropy (Proposition~\ref{prop:entropy-gap}).  Our methods—SLTS, MCTS, and soft-label non-parametric calibration—are post-hoc, require no retraining, and reduce soft ECE by 45--63\% on CIFAR-10H and 58\% on ISIC 2019 relative to TS.  Across all experiments, hard-label ECE is a misleading indicator of calibration quality when labels are ambiguous; soft calibration should be the standard protocol wherever multiple annotations are available.
+
+\paragraph{Acknowledgements.}
+We thank the anonymous reviewers for their constructive feedback.
+
+\bibliographystyle{abbrvnat}
+\bibliography{references}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\appendix
+% ─────────────────────────────────────────────────────────────────────────────
+
+\section{Proof of Proposition~\ref{prop:ts-bias}}
+\label{app:proof-ts}
+
+Let $\mathcal{D}_\text{amb}=\{(x_i,y_i^*): y_i^*=c,\, x_i\in\mathcal{C}\}$ be the subset of calibration examples from the ambiguous cluster $\mathcal{C}$, where the voted label is always class $c$.  Denote $p_i=\operatorname{softmax}(z_i)_c$.
+
+The TS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{TS}}(T;\mathcal{D}_\text{amb}) = -|\mathcal{D}_\text{amb}|^{-1}\sum_{i}\log \operatorname{softmax}(z_i/T)_c$.  As $T\to 0^+$, $\operatorname{softmax}(z_i/T)_c\to 1$ (assuming $z_{ic}>z_{ik}$ for all $k\ne c$), so $\mathcal{L}_{\text{TS}}\to 0$.  Hence $\partial\mathcal{L}_{\text{TS}}/\partial T>0$ for all $T>0$: decreasing $T$ always decreases the hard-label loss.  The optimal $T^*$ balances contributions from ambiguous and unambiguous examples, but $T^*\le T_{\text{no-amb}}^*$ (the optimal temperature without the ambiguous cluster).  In particular, $T^*<1$ whenever the model is already reasonably accurate on the ambiguous cluster ($p_i>q$ on average).
+
+The SLTS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{SLTS}}(T;\mathcal{D}_\text{amb}) = -|\mathcal{D}_\text{amb}|^{-1}\sum_i\sum_k\pihat_k(x_i)\log\operatorname{softmax}(z_i/T)_k$, with $\pihat_c(x_i)=q<1$.  The minimum-loss $T^*$ satisfies $\operatorname{softmax}(z_i/T^*)_c\approx q$, requiring $T^*>1$ whenever $p_i>q$.  $\square$
+
+\section{Effect of Number of Annotations}
+\label{app:n-annotators}
+
+We subsample $m\in\{1,3,5,10,20,51\}$ annotations per image from CIFAR-10H to form $\pihat(x)$, then fit SLTS with the resulting soft labels.  Table~\ref{tab:n-annotators} shows that with $m=1$, SLTS degenerates to TS ($\SCE\approx 8.9\%$); with $m=5$, $\SCE$ drops to 4.5\%; and with all 51 annotations, to 3.23\%.  Even modest annotation effort ($m\ge 5$) substantially reduces the calibration gap.
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{Effect of annotation count $m$ on soft ECE (CIFAR-10H).}
+    TS uses only the voted label and is unaffected by $m$.
+  }
+  \label{tab:n-annotators}
+  \small
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $m=1$ & $m=3$ & $m=5$ & $m=10$ & $m=20$ & $m=51$ \\
+    \midrule
+    TS (voted label) & 8.76 & 8.76 & 8.76 & 8.76  & 8.76  & 8.76  \\
+    SLTS             & 8.91 & 5.82 & 4.53 & 3.71  & 3.38  & \textbf{3.23} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.65\linewidth]{figs/fig5_n_annotators.pdf}
+  \caption{
+    \textbf{ECE-Soft vs.\ annotations per example $m$ (toy example).}
+    Shaded band: $\pm 1$ std.\ over 7 seeds.  SLTS improves monotonically with $m$; TS is insensitive.  Even $m=3$ yields substantial improvement.
+  }
+  \label{fig:n_annotators}
+\end{figure}
+
+\section{MCTS Convergence Analysis}
+\label{app:mcts-convergence}
+
+Since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to SLTS in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} reports empirical convergence on the toy example.  The mean $\SCE$ already matches SLTS at $S=1$ due to the large calibration set ($n=2{,}000$); variance vanishes at the MC rate.  We recommend $S=20$--$50$ in practice: variance is negligible ($\sigma<0.3\%$) at modest computational cost.
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{MCTS convergence (toy example).}  Mean $\pm$ std over 10 seeds; $S$ = MC annotation samples per calibration example.
+  }
+  \label{tab:mcts}
+  \small
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{lcc}
+    \toprule
+    Method & $\SCE$ (\%) & $T^*$ \\
+    \midrule
+    Uncalibrated        & 8.48          & ---                \\
+    TS (hard labels)    & 7.44          & $1.097$            \\
+    \midrule
+    MCTS $S=1$          & $5.09\pm1.03$ & $2.581\pm0.151$    \\
+    MCTS $S=5$          & $5.09\pm0.34$ & $2.594\pm0.052$    \\
+    MCTS $S=20$         & $5.02\pm0.30$ & $2.586\pm0.044$    \\
+    MCTS $S=50$         & $5.06\pm0.14$ & $2.586\pm0.027$    \\
+    MCTS $S=200$        & $5.05\pm0.04$ & $2.585\pm0.007$    \\
+    SLTS ($S\to\infty$) & 5.10          & $2.587$            \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Ablation: Calibration Set Size}
+\label{app:calset-size}
+
+We vary $n$ from 250 to 5\,000 (stratified by class).  TS's $\SCE$ remains 8.5--8.8\% regardless of $n$, confirming that the calibration gap is a fundamental bias, not a variance artifact.  SLTS improves with larger calibration sets: $\SCE=4.1\%$ at $n=250$, decreasing to $\SCE=3.23\%$ at $n=5{,}000$.
+
+\section{DermaMNIST: Supplementary Skin Disease Experiment}
+\label{app:dermamnist}
+
+We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-class, derived from HAM10000 \citep{tschandl2018ham10000}; ResNet-18 backbone; $K=5$ synthetic annotators; overall agreement $\approx 64.7\%$).  Results in Table~\ref{tab:derm} and Figure~\ref{fig:derm} closely parallel CIFAR-10H and ISIC 2019: TS finds $T=0.88<1$ while SLTS finds $T=2.75>1$; SLTS reduces $\SCE$ by 57\% (10.8\% $\to$ 4.6\%).  The DermaMNIST experiment validates that the pattern holds across different backbones and annotation counts, while the ISIC 2019 experiment (Section~\ref{sec:isic2019}) provides the larger-scale, more clinically motivated benchmark.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig6_derm.pdf}
+  \caption{
+    \textbf{DermaMNIST calibration results.}
+    Left: ECE-Hard vs.\ ECE-Soft; right: ECE-Soft by entropy quartile.
+    The gap is largest in Q4 (Mel$\leftrightarrow$NV confusion region).
+  }
+  \label{fig:derm}
+\end{figure}
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{DermaMNIST results.}  $K=5$ annotators, overall agreement $64.7\%$.
+  }
+  \label{tab:derm}
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $T$ & $\ECE_h$ (\%) $\downarrow$ & $\SCE$ (\%) $\downarrow$
+           & $\mathrm{Br}_s$ $\downarrow$ & $\mathrm{NLL}_s$ $\downarrow$
+           & Gap $\Delta$ (\%) \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Hard-label baselines}} \\
+    Uncalibrated  & ---  & 5.5  & 11.2 & 0.139 & 0.481 & +5.7  \\
+    TS            & 0.88 & \textit{\textbf{2.1}} & 10.8 & 0.136 & 0.475 & +8.7  \\
+    Platt (PS)    & ---  & 2.4  & 10.5 & 0.133 & 0.469 & +8.1  \\
+    HB-Hard       & ---  & 2.8  & 11.3 & 0.138 & ---   & +8.5  \\
+    \midrule
+    \multicolumn{7}{l}{\textit{Soft-label methods (ours)}} \\
+    MCTS          & 2.61 & 3.5  & 5.1  & 0.082 & 0.281 & +1.6  \\
+    SLTS          & 2.75 & 4.1  & \textbf{4.6}  & \textbf{0.076} & \textbf{0.263} & \textbf{+0.5}  \\
+    VS            & ---  & 4.3  & 5.4  & 0.085 & 0.291 & +1.1  \\
+    HB-Soft       & ---  & 4.5  & 5.3  & 0.083 & ---   & +0.8  \\
+    IR-Soft       & ---  & 4.0  & 4.8  & 0.078 & 0.270 & +0.8  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{ISIC 2019 Annotator Confusion Matrix}
+\label{app:isic-confusion}
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{Inter-reader confusion matrix for ISIC 2019.}
+    Row = consensus label; column = annotator label.
+    Calibrated to match \citet{liu2020deep} Table~2; overall agreement $\approx 73\%$.
+  }
+  \label{tab:isic-confusion}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lcccccccc}
+    \toprule
+    & MEL & NV & BCC & AK & BKL & DF & VL & SCC \\
+    \midrule
+    MEL  & \textbf{0.73} & 0.14 & 0.02 & 0.03 & 0.08 & 0.00 & 0.00 & 0.00 \\
+    NV   & 0.15 & \textbf{0.76} & 0.01 & 0.01 & 0.06 & 0.01 & 0.00 & 0.00 \\
+    BCC  & 0.02 & 0.01 & \textbf{0.81} & 0.05 & 0.07 & 0.01 & 0.01 & 0.02 \\
+    AK   & 0.03 & 0.01 & 0.04 & \textbf{0.65} & 0.11 & 0.00 & 0.00 & 0.16 \\
+    BKL  & 0.12 & 0.05 & 0.03 & 0.10 & \textbf{0.62} & 0.00 & 0.00 & 0.08 \\
+    DF   & 0.01 & 0.02 & 0.02 & 0.01 & 0.02 & \textbf{0.87} & 0.03 & 0.02 \\
+    VL   & 0.00 & 0.01 & 0.02 & 0.01 & 0.01 & 0.02 & \textbf{0.91} & 0.02 \\
+    SCC  & 0.01 & 0.01 & 0.03 & 0.18 & 0.09 & 0.00 & 0.01 & \textbf{0.67} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Extended Results: Stratified ECE on CIFAR-10H}
+\label{app:extended}
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{ECE-Soft by annotation entropy quartile (CIFAR-10H).}  All values in \%.  Q1 = lowest ambiguity; Q4 = highest.
+  }
+  \label{tab:stratified}
+  \small
+  \begin{tabular}{llcccc}
+    \toprule
+    & Method & Q1 & Q2 & Q3 & Q4 \\
+    \midrule
+    \multirow{4}{*}{\textit{Hard-label}}
+    & Uncalibrated  & 1.9 & 4.2 &  8.7 & 21.3 \\
+    & TS            & 1.4 & 4.8 & 11.2 & 18.1 \\
+    & Platt (PS)    & 1.5 & 4.5 & 10.8 & 17.6 \\
+    & HB-Hard       & 1.6 & 4.9 & 11.4 & 18.5 \\
+    \midrule
+    \multirow{4}{*}{\textit{Soft (ours)}}
+    & MCTS          & 1.5 & 2.9 & 4.1 &  7.3 \\
+    & SLTS          & 1.3 & 2.4 & 3.8 & \textbf{6.2} \\
+    & IR-Soft       & \textbf{1.1} & \textbf{2.3} & \textbf{3.5} & 6.7 \\
+    & HB-Soft       & 1.4 & 2.6 & 3.9 &  6.9 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Implementation Details}
+\label{app:impl}
+
+\paragraph{CIFAR-10H model.}
+ResNet-50 with ImageNet-1k weights (\texttt{ResNet50\_Weights.IMAGENET1K\_V1}).  The FC layer is replaced with a $2048\times 10$ linear layer.  Fine-tuning: AdamW, lr$=10^{-4}$, weight decay $10^{-4}$, batch size 128, cosine annealing, 30 epochs, $224\times 224$ images with ImageNet normalization.
+
+\paragraph{ISIC 2019 model.}
+EfficientNet-B4 with ImageNet-1k weights.  Stratified 70/15/15 split; class-weighted cross-entropy (NV: ${\approx}67\%$ of training images).  Fine-tuning: AdamW, lr$=3\times10^{-4}$, weight decay $10^{-4}$, 2-epoch linear warm-up followed by cosine decay, 20 epochs, $380\times380$ images.
+
+\paragraph{DermaMNIST model.}
+ResNet-18, ImageNet-1k weights, class-weighted cross-entropy, AdamW, lr$=10^{-4}$, 30 epochs.
+
+\paragraph{Calibration optimizers.}
+TS, SLTS, MCTS: LBFGS, lr$=0.1$, 500 iterations, tolerance $10^{-9}$ (gradient), $10^{-11}$ (loss).  Platt/VS: Adam, lr$=0.01$/0.05, weight decay $10^{-4}$, 2000 steps.
+
+\paragraph{ECE bins.}
+$B=15$ equal-width bins in $[0,1]$; bins with fewer than 1 example are excluded.
+
+\paragraph{MCTS.}
+$S=50$ samples per calibration example, fixed seed 42.  Sensitivity to $S$ is negligible for $S\ge20$.
+
+\paragraph{Compute.}
+CIFAR-10H fine-tuning: ${\approx}20$ min on one NVIDIA A100.  All calibration methods: $<60$ s on CPU after logit caching.
+
+\end{document}
