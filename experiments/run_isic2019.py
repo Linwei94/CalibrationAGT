@@ -371,8 +371,10 @@ def train_model(
         progress = (epoch - 2) / max(n_epochs - 2, 1)
         return 0.5 * (1 + np.cos(np.pi * progress))
 
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, _lr_lambda)
-    crit  = nn.CrossEntropyLoss(weight=weights_t)
+    sched  = torch.optim.lr_scheduler.LambdaLR(opt, _lr_lambda)
+    crit   = nn.CrossEntropyLoss(weight=weights_t)
+    use_amp = str(device) == "cuda"
+    scaler  = torch.cuda.amp.GradScaler() if use_amp else None
 
     print(f"  Class counts (train): {counts.astype(int).tolist()}")
     print(f"  Class weights:        {[f'{w:.3f}' for w in weights]}")
@@ -385,10 +387,18 @@ def train_model(
         for x, y in tqdm(train_loader, desc=f"Epoch {epoch+1:2d}/{n_epochs}", leave=False):
             x, y = x.to(device), y.to(device).reshape(-1).long()
             opt.zero_grad()
-            out  = model(x)
-            loss = crit(out, y)
-            loss.backward()
-            opt.step()
+            if use_amp:
+                with torch.cuda.amp.autocast():
+                    out  = model(x)
+                    loss = crit(out, y)
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
+            else:
+                out  = model(x)
+                loss = crit(out, y)
+                loss.backward()
+                opt.step()
             tr_loss    += loss.item() * len(y)
             tr_correct += (out.argmax(1) == y).sum().item()
             tr_total   += len(y)

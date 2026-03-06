@@ -6,7 +6,9 @@ are provided for every metric.
 
 Functions
 ---------
-  compute_ece          — Expected Calibration Error (binned)
+  compute_ece          — Expected Calibration Error (equal-width bins)
+  compute_adaptive_ece — Adaptive ECE (equal-mass / quantile bins)
+  compute_classwise_ece— Classwise ECE (per-class, then averaged)
   compute_brier        — Brier Score
   compute_nll          — Negative Log-Likelihood
   compute_all_metrics  — Run all metrics, hard + soft, return dict
@@ -72,6 +74,101 @@ def compute_ece(
             info.append((mc, ma, int(n)))
 
     return float(ece), info
+
+
+def compute_adaptive_ece(
+    probs: np.ndarray,
+    targets: np.ndarray,
+    n_bins: int = 15,
+    min_count: int = 1,
+) -> float:
+    """
+    Adaptive ECE with equal-mass (quantile) bins [Nixon et al. 2019].
+
+    Unlike standard ECE which uses equal-width confidence bins, aECE places
+    bin boundaries so each bin contains an equal number of samples.  This
+    avoids empty bins at extreme confidence values and gives a more reliable
+    estimate when the confidence distribution is non-uniform.
+
+    Parameters
+    ----------
+    probs   : (N, K) predicted probability vectors
+    targets : (N,) int  OR  (N, K) float
+    n_bins  : number of equal-mass bins
+    min_count : bins with fewer examples are skipped
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    targets = np.asarray(targets)
+
+    K = probs.shape[1]
+    if targets.ndim == 1:
+        soft = np.eye(K)[targets.astype(int)]
+    else:
+        soft = targets.astype(np.float64)
+
+    conf = probs.max(axis=1)
+    pred = probs.argmax(axis=1)
+    sacc = soft[np.arange(len(pred)), pred]
+
+    # Sort by confidence, then split into n_bins equal-mass buckets
+    order = np.argsort(conf)
+    conf_s = conf[order]
+    sacc_s = sacc[order]
+
+    N = len(conf)
+    ece = 0.0
+    for b in np.array_split(np.arange(N), n_bins):
+        if len(b) >= min_count:
+            mc = float(conf_s[b].mean())
+            ma = float(sacc_s[b].mean())
+            ece += (len(b) / N) * abs(mc - ma)
+    return float(ece)
+
+
+def compute_classwise_ece(
+    probs: np.ndarray,
+    targets: np.ndarray,
+    n_bins: int = 15,
+    min_count: int = 1,
+) -> float:
+    """
+    Classwise ECE (cwECE) [Kull et al. 2019].
+
+    For each class k, treat p_k as a "confidence" and the k-th component of
+    the target (soft or one-hot) as the "accuracy".  Compute a standard
+    equal-width binned ECE for that class, then average over all K classes.
+
+    Parameters
+    ----------
+    probs   : (N, K) predicted probability vectors
+    targets : (N,) int  OR  (N, K) float
+    n_bins  : number of confidence bins per class
+    min_count : bins with fewer examples are skipped
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    targets = np.asarray(targets)
+
+    N, K = probs.shape
+    if targets.ndim == 1:
+        soft = np.eye(K)[targets.astype(int)]
+    else:
+        soft = targets.astype(np.float64)
+
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    ece_per_class = []
+    for k in range(K):
+        p_k = probs[:, k]
+        t_k = soft[:, k]
+        ece_k = 0.0
+        for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+            mask = (p_k >= lo) & (p_k < hi)
+            n = mask.sum()
+            if n >= min_count:
+                mc = float(p_k[mask].mean())
+                mt = float(t_k[mask].mean())
+                ece_k += (n / N) * abs(mc - mt)
+        ece_per_class.append(ece_k)
+    return float(np.mean(ece_per_class))
 
 
 def compute_ece_from_conf(
@@ -231,22 +328,27 @@ def compute_all_metrics(
     Compute all metrics (hard + soft + sampled) for a single calibration output.
 
     Returns a flat dict with keys:
-      ece_hard, ece_soft, ece_sampled, brier_hard, brier_soft, nll_hard, nll_soft
+      ece_hard, ece_soft, ece_sampled,
+      adaptive_ece_true, classwise_ece_true,
+      brier_hard, brier_soft, brier_sampled,
+      nll_hard, nll_soft, nll_sampled
     """
     ece_h, _ = compute_ece(probs, labels_hard, n_bins=n_bins)
     ece_s, _ = compute_ece(probs, labels_soft, n_bins=n_bins)
     ece_samp = compute_ece_sampled(probs, labels_soft, n_bins=n_bins)
     return {
-        "name":        name,
-        "ece_hard":    ece_h,
-        "ece_soft":    ece_s,
-        "ece_sampled": ece_samp,
-        "brier_hard":  compute_brier(probs, labels_hard),
-        "brier_soft":  compute_brier(probs, labels_soft),
-        "brier_sampled": compute_brier_sampled(probs, labels_soft),
-        "nll_hard":    compute_nll(probs, labels_hard),
-        "nll_soft":    compute_nll(probs, labels_soft),
-        "nll_sampled": compute_nll_sampled(probs, labels_soft),
+        "name":               name,
+        "ece_hard":           ece_h,
+        "ece_soft":           ece_s,
+        "ece_sampled":        ece_samp,
+        "adaptive_ece_true":  compute_adaptive_ece(probs, labels_soft, n_bins=n_bins),
+        "classwise_ece_true": compute_classwise_ece(probs, labels_soft, n_bins=n_bins),
+        "brier_hard":         compute_brier(probs, labels_hard),
+        "brier_soft":         compute_brier(probs, labels_soft),
+        "brier_sampled":      compute_brier_sampled(probs, labels_soft),
+        "nll_hard":           compute_nll(probs, labels_hard),
+        "nll_soft":           compute_nll(probs, labels_soft),
+        "nll_sampled":        compute_nll_sampled(probs, labels_soft),
     }
 
 
@@ -323,6 +425,7 @@ def ambiguity_split_ece(
 # ──────────────────────────────────────────────────────────────────────────────
 
 def print_results_table(results: list[dict]) -> None:
+    # --- main ECE / Brier / NLL table ---
     header = (f"{'Method':<22} | {'ECE-Hard':>9} | {'ECE-True':>9} | {'ECE-Soft':>9} | "
               f"{'Br-Hard':>8} | {'Br-True':>8} | {'Br-Soft':>8} | "
               f"{'NLL-Hard':>9} | {'NLL-True':>9} | {'NLL-Soft':>9}")
@@ -346,3 +449,19 @@ def print_results_table(results: list[dict]) -> None:
             f"{r['nll_soft']:>9.4f}"
         )
     print("=" * len(header))
+
+    # --- Adaptive ECE + Classwise ECE (true-label variants) ---
+    header2 = (f"{'Method':<22} | {'aECE-True':>10} | {'cwECE-True':>11}")
+    print()
+    print("=" * len(header2))
+    print(header2)
+    print("-" * len(header2))
+    for r in results:
+        aece  = r.get('adaptive_ece_true',  float('nan'))
+        cwece = r.get('classwise_ece_true', float('nan'))
+        print(
+            f"{r['name']:<22} | "
+            f"{aece*100:>9.2f}% | "
+            f"{cwece*100:>10.2f}%"
+        )
+    print("=" * len(header2))

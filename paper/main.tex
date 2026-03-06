@@ -34,6 +34,8 @@
 \newcommand{\KL}{\mathrm{KL}}
 \newcommand{\ECEvoted}{\ECE_{\text{voted}}}
 \newcommand{\ECEtrue}{\ECE_{\text{true}}}
+\newcommand{\aECE}{\mathrm{aECE}}
+\newcommand{\cwECE}{\mathrm{cwECE}}
 \DeclareMathOperator*{\argmax}{arg\,max}
 
 \newtheorem{definition}{Definition}
@@ -61,7 +63,13 @@
 % ─────────────────────────────────────────────────────────────────────────────
 \begin{abstract}
 % ─────────────────────────────────────────────────────────────────────────────
-Confidence calibration assumes a unique ground-truth label for each input, yet many real-world tasks—medical imaging, natural language inference, autonomous perception—exhibit irreducible label ambiguity where rational annotators genuinely disagree.  We identify a systematic \emph{calibration gap}: when standard post-hoc calibrators (Temperature Scaling, Platt scaling, Histogram Binning) are fitted on majority-voted labels, they appear well-calibrated under voted-label evaluation while remaining significantly miscalibrated when evaluated against true labels drawn from the annotator distribution.  This failure is universal—affecting both parametric and non-parametric calibrators—because all share the same voted-label training target, not an insufficiency in model capacity.  We prove the direction of this bias is determined by the majority-vote target.  To close the gap, we propose post-hoc recalibration methods—\textbf{Soft-Label Temperature Scaling (SLTS)} and \textbf{Monte Carlo Temperature Scaling (MCTS)}—that replace voted-label targets with annotator distributions and optimize proper scoring rules.  On CIFAR-10H (51 human annotations per image), our methods reduce true-label ECE by up to 83\% relative to TS (IR-Soft: $0.72\%$ vs.\ TS: $4.29\%$, ResNet-50).  On ChaosNLI (100 annotations per example, 3-class NLI), the calibration gap under TS reaches $+8.5$ pp for RoBERTa-Large and $+8.3$ pp for DeBERTa-v3; SLTS reduces $\ECEtrue$ by 69--70\%.  On a skin-disease benchmark (ISIC 2019, 8 classes, $K\!=\!9$ annotators), the gap reaches $+17.2$ pp.  The gap is consistent across vision and language models, confirming it is a structural property of the voted-label objective rather than model or modality inductive bias.
+Confidence calibration implicitly assumes a unique ground-truth label per input.
+When multiple annotators genuinely disagree---as in medical diagnosis, natural language inference, and perceptual tasks---this assumption breaks down.
+We show that post-hoc calibrators fitted on majority-voted labels exhibit a systematic \emph{calibration gap}: they appear well-calibrated against voted labels yet remain substantially miscalibrated against labels drawn from the annotator distribution.
+The gap is structural, affecting Temperature Scaling, Platt scaling, and Histogram Binning alike, because all share the same one-hot target.
+We prove that Temperature Scaling is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
+To close it, we propose \textbf{Soft-Label Temperature Scaling (SLTS)} and related methods that optimize proper scoring rules against the full annotator distribution.
+Experiments on CIFAR-10H, ChaosNLI, and ISIC~2019---spanning six architectures across vision and language---show that our methods reduce true-label ECE by 48--83\% relative to standard Temperature Scaling.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -80,15 +88,15 @@ where $\Delta^K$ denotes the $K$-dimensional probability simplex.  Calibration i
 Equation~\eqref{eq:hard-cal} implicitly assumes a unique ground-truth label $Y$ for every input $x$.  In practice this assumption frequently fails: a skin lesion may be legitimately classified as malignant or benign by different dermatologists; a natural-language premise may or may not entail a hypothesis depending on pragmatic context; low-resolution objects can be categorically ambiguous.  In such settings the correct target is not a single label but a \emph{distribution over labels}, $\pi(\cdot\mid x)\in\Delta^K$, reflecting irreducible aleatoric uncertainty shared by rational annotators.
 
 \paragraph{The standard practice and its failure.}
-Standard practice aggregates annotations by majority vote to produce a \emph{voted label} $y^*$, then calibrates against $y^*$.  We show this produces a \emph{calibration gap} $\Delta=\ECEtrue-\ECEvoted$: the method achieves low voted-label ECE ($\ECEvoted$) while incurring large true-label ECE ($\ECEtrue$, where the \emph{true label} is drawn from the annotator distribution $\pi(\cdot\mid x)$, following \citet{stutz2023conformal}).  The failure mechanism has a precise two-step structure: \emph{(i)}~ambiguous examples with voted label $y^*$ appear \emph{underconfident} under voted-label evaluation—the model outputs $\hat{p}_{y^*}(x)<1$ while the voted target demands 1—so Temperature Scaling selects a smaller $T$ than true-label calibration requires, pushing predicted confidence toward the voted target; \emph{(ii)}~because the true annotator probability is $\pi_{y^*}(x)=q<1$, this confidence boost pushes the model \emph{further} from the true target, making it more overconfident under true-label evaluation, not less.  Critically, this failure is \emph{universal}: Temperature Scaling, Platt scaling, and even non-parametric Histogram Binning all widen $\Delta$ from $+7.6$ pp (uncalibrated) to $+9.5$--$+11.1$ pp in a controlled 3-class experiment (Section~\ref{sec:toy}), because every voted-label calibration method shares the same flawed target—not a lack of model capacity.
+Standard practice aggregates annotations by majority vote to obtain a \emph{voted label} $y^*$ and calibrates against it.  We show this produces a systematic \emph{calibration gap}: the calibrator achieves low ECE against voted labels ($\ECEvoted$) while remaining substantially miscalibrated against true labels drawn from the annotator distribution ($\ECEtrue$, following \citet{stutz2023conformal}).  The mechanism is straightforward: ambiguous examples appear underconfident relative to the one-hot voted target, so Temperature Scaling selects a lower $T$ than the annotator distribution requires, amplifying overconfidence.  This failure is universal---Temperature Scaling, Platt scaling, and Histogram Binning all \emph{widen} the gap in a controlled experiment (Section~\ref{sec:toy})---because the root cause is the voted-label target, not method capacity.
 
 \paragraph{Contributions.}
-\begin{enumerate}
-  \item \textbf{Formal framework} (Section~\ref{sec:problem}): we define soft calibration and the calibration gap $\Delta$ with respect to the annotator distribution $\pi(\cdot\mid x)$.
-  \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment showing that Temperature Scaling, Platt scaling, and Histogram Binning all \emph{widen} the calibration gap (from $+7.6$ pp to $+9.5$--$+11.1$ pp), confirming the gap is a structural consequence of the voted-label target regardless of method capacity or parametric family.
-  \item \textbf{Theory} (Section~\ref{sec:theory}): we prove that the TS bias direction is determined by the majority-vote target and that the gap grows monotonically with annotation entropy.
-  \item \textbf{Methods} (Section~\ref{sec:methods}): simple post-hoc calibrators—SLTS, MCTS, and soft-label isotonic regression (IR-Soft)—that minimize proper scoring rules against annotator distributions.
-  \item \textbf{Experiments} (Section~\ref{sec:experiments}): evaluation on CIFAR-10H (51 human annotations per image), ChaosNLI (100 human annotations per NLI pair), and ISIC 2019 (skin-disease diagnosis), across six model architectures spanning vision and language to confirm the gap is architecture- and modality-agnostic.
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Formal framework} (Section~\ref{sec:problem}): we define true-label calibration and the calibration gap $\Delta$ with respect to the annotator distribution $\pi(\cdot\mid x)$.
+  \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment in which all standard calibrators \emph{widen} the gap, from $+7.6$ to $+9.5$--$+11.1$~pp.
+  \item \textbf{Theory} (Section~\ref{sec:theory}): we prove that TS is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
+  \item \textbf{Methods} (Section~\ref{sec:methods}): post-hoc calibrators---SLTS, MCTS, and IR-Soft---that optimize proper scoring rules against annotator distributions.
+  \item \textbf{Experiments} (Section~\ref{sec:experiments}): evaluation on three benchmarks (CIFAR-10H, ChaosNLI, ISIC~2019) across six architectures spanning vision and language, confirming the gap is modality-agnostic.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -97,16 +105,16 @@ Standard practice aggregates annotations by majority vote to produce a \emph{vot
 % ─────────────────────────────────────────────────────────────────────────────
 
 \paragraph{Confidence calibration.}
-\citet{guo2017calibration} showed that modern deep networks are overconfident and that Temperature Scaling is a highly effective post-hoc fix.  Isotonic regression \citep{zadrozny2002transforming}, Platt scaling \citep{platt1999probabilistic}, and Dirichlet calibration \citep{kull2019beyond} have also been widely studied.  All assume a single hard ground-truth label.
+\citet{guo2017calibration} showed that modern networks are miscalibrated and that Temperature Scaling (TS) is an effective post-hoc remedy.  Isotonic regression \citep{zadrozny2002transforming}, Platt scaling \citep{platt1999probabilistic}, and Dirichlet calibration \citep{kull2019beyond} have since been studied extensively---all assuming a unique ground-truth label.
 
 \paragraph{Learning from multiple annotators.}
-\citet{dawid1979maximum} introduced an EM algorithm to infer latent true labels from crowdsourced annotations.  \citet{rodrigues2018deep} proposed end-to-end learning from crowds; \citet{peterson2019human} released CIFAR-10H capturing human uncertainty at scale; \citet{nie2020what} released ChaosNLI with 100 annotations per NLI example; \citet{uma2021learning} surveyed multi-annotator learning across NLP; \citet{collins2022eliciting} studied soft-label elicitation.  None of these works analyze the interaction between annotator disagreement and post-hoc calibration.
+Methods for inferring labels from crowds \citep{dawid1979maximum,rodrigues2018deep}, datasets capturing annotator disagreement \citep{peterson2019human,nie2020what}, and surveys of multi-annotator learning \citep{uma2021learning,collins2022eliciting} have received growing attention.  None of these works study the interaction between annotator disagreement and post-hoc calibration.
 
 \paragraph{Conformal prediction under ambiguous ground truth.}
-\citet{stutz2023conformal} show that conformal prediction calibrated on voted labels undercovers the true annotator distribution.  Our work identifies the analogous failure for calibration: voted-label calibration produces systematic overconfidence.
+\citet{stutz2023conformal} show that conformal sets calibrated on voted labels undercover the true annotator distribution.  We identify the analogous failure for confidence calibration: voted-label calibration produces systematic overconfidence.
 
 \paragraph{Calibration under distribution shift and soft labels.}
-\citet{park2020calibrated}, \citet{wang2020transferable}, and \citet{guo2022calibrating} study calibration under covariate shift—orthogonal to our label-ambiguity setting.  Label smoothing \citep{szegedy2016rethinking} and its calibration effects \citep{muller2019does} use uniform soft labels during training; we instead use annotation-informed soft labels for post-hoc calibration.
+Calibration under covariate shift \citep{park2020calibrated,wang2020transferable,guo2022calibrating} is orthogonal to our label-ambiguity setting.  Label smoothing \citep{szegedy2016rethinking,muller2019does} applies uniform soft targets during training; we use annotation-informed soft labels for post-hoc calibration.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Problem Formulation}
@@ -185,7 +193,7 @@ A 3-class 2D Gaussian dataset: class~0 is always labeled~0 ($\pi_0=1$); class~1 
 \end{figure}
 
 \paragraph{Results.}
-Table~\ref{tab:toy} and Figure~\ref{fig:toy} demonstrate that the calibration gap is not a property of any particular calibration method—it is a structural consequence of training against voted labels.  TS achieves $\ECEvoted=1.1\%$ but $\ECEtrue=12.2\%$ ($\Delta=+11.1$ pp)—a calibration gap \emph{larger} than the uncalibrated model's gap of $+7.6$ pp.  This reveals the two-step failure: TS sets $T=0.76<1$ to boost the model's moderate confidence toward perfect voted-label accuracy, but this boost pushes the model \emph{further} from the true annotator target.  Platt scaling shows the same pathology ($\Delta\approx+11$ pp).  Critically, even non-parametric methods are not immune: Histogram Binning (HB-Hard), which directly remaps predicted confidences to empirical bin-level accuracy against voted labels, also widens the gap ($\Delta=+9.5$ pp).  In every case, voted-label calibration fails to reduce and even widens $\Delta$, because the failure stems from the voted-label \emph{target}, not from method capacity or parametric constraints.  What is needed is a calibration target that reflects the annotator distribution.
+Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a structural consequence of the voted-label target.  TS achieves $\ECEvoted=1.1\%$ but $\ECEtrue=12.2\%$ ($\Delta=+11.1$~pp)---\emph{larger} than the uncalibrated gap of $+7.6$~pp.  TS sets $T=0.76<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true annotator distribution.  Platt scaling ($\Delta\approx+11$~pp) and even non-parametric Histogram Binning ($\Delta=+9.5$~pp) exhibit the same pathology, confirming that the failure lies in the target, not the method.
 
 \begin{remark}[Temperature direction in the toy example]
 \label{rem:toy-T}
@@ -219,7 +227,7 @@ TS finds $T=0.76<1$ in the toy example, consistent with Proposition~\ref{prop:ts
 \label{sec:theory}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Section~\ref{sec:toy} established that the calibration gap is a structural property of the voted-label objective, shared equally by all voted-label calibration methods regardless of capacity.  We now provide theoretical explanations for two complementary aspects: the \emph{direction} of the temperature bias under TS (Proposition~\ref{prop:ts-bias}) and how the gap \emph{scales} with label ambiguity (Proposition~\ref{prop:entropy-gap}).
+We now formalize two complementary aspects of the calibration gap: the \emph{direction} of the TS bias (Proposition~\ref{prop:ts-bias}) and its \emph{scaling} with label ambiguity (Proposition~\ref{prop:entropy-gap}).
 
 \begin{proposition}[Direction of TS Bias]
 \label{prop:ts-bias}
@@ -287,13 +295,13 @@ Fits a monotone mapping from predicted confidence to mean annotator accuracy via
 \label{sec:experiments}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We evaluate our methods on three benchmarks with real or realistic multi-annotator data, spanning computer vision and natural language processing.  For each benchmark we evaluate two backbones to confirm the calibration gap is architecture- and modality-agnostic: ResNet-50 and ViT-B/16 for CIFAR-10H (image classification), RoBERTa-Large and DeBERTa-v3-base for ChaosNLI (natural language inference), and EfficientNet-B4 and ViT-S/16 for ISIC 2019 (skin-disease diagnosis).
+We evaluate on three benchmarks with multi-annotator data, each with two backbones: CIFAR-10H (ResNet-50, ViT-B/16), ChaosNLI (RoBERTa-Large, DeBERTa-v3), and ISIC~2019 (EfficientNet-B4, ViT-S/16).
 
 \paragraph{Baselines.}
 We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \citep{platt1999probabilistic,kull2019beyond}.
 
 \paragraph{Metrics.}
-We report three metrics, all evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ bins), Brier score, and NLL.  Table~\ref{tab:main} uses the full notation $\ECEtrue$, $\mathrm{Br}_t$, $\mathrm{NLL}_t$; thereafter we abbreviate as ECE, Br, and NLL (always true-label unless noted).
+All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  After Table~\ref{tab:main} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{CIFAR-10H}
@@ -314,44 +322,43 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     Best per architecture in \textbf{bold}.
   }
   \label{tab:main}
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{lccccc}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
     \toprule
-    Method & $T$ & $\ECEtrue$ (\%) $\downarrow$
+    Method & $T$ & $\ECEtrue$ (\%) $\downarrow$ & $\aECE_t$ (\%) $\downarrow$ & $\cwECE_t$ (\%) $\downarrow$
            & $\mathrm{Br}_t$ $\downarrow$ & $\mathrm{NLL}_t$ $\downarrow$ \\
     \midrule
-    \multicolumn{5}{l}{\textit{ResNet-50 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  &  4.97 & 0.120 & 0.692 \\
-    TS            & 2.03 &  4.29 & 0.112 & 0.363 \\
-    Platt (PS)    & ---  &  4.29 & 0.112 & 0.372 \\
-    HB-Hard       & ---  &  7.44 & 0.516 & 10.40$^\dagger$ \\
-    \multicolumn{5}{l}{\textit{ResNet-50 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.18 &  1.51 & 0.110 & 0.293 \\
-    SLTS          & 3.18 &  1.51 & 0.110 & 0.293 \\
-    VS            & ---  &  1.35 & \textbf{0.109} & \textbf{0.289} \\
-    IR-Soft       & ---  &  \textbf{0.72} & 0.115 & 0.340 \\
+    \multicolumn{7}{l}{\textit{ResNet-50 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692 \\
+    TS            & 2.03 &  4.29 &  4.25 &  0.91 & 0.112 & 0.363 \\
+    Platt (PS)    & ---  &  4.29 &  4.23 &  0.91 & 0.112 & 0.372 \\
+    HB-Hard       & ---  &  7.44 &  7.34 &  7.97 & 0.516 & 10.40$^\dagger$ \\
+    \multicolumn{7}{l}{\textit{ResNet-50 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
+    SLTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
+    VS            & ---  &  1.35 &  1.26 &  \textbf{0.39} & \textbf{0.109} & \textbf{0.289} \\
+    IR-Soft       & ---  &  \textbf{0.72} & \textbf{0.83} &  0.45 & 0.115 & 0.340 \\
     \midrule
-    \multicolumn{5}{l}{\textit{ViT-B/16 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  &  4.99 & 0.111 & 0.678 \\
-    TS            & 2.04 &  4.48 & 0.106 & 0.346 \\
-    Platt (PS)    & ---  &  4.54 & 0.105 & 0.363 \\
-    HB-Hard       & ---  &  6.55 & 0.388 &  7.37$^\dagger$ \\
-    \multicolumn{5}{l}{\textit{ViT-B/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.07 &  \textbf{0.85} & 0.102 & 0.278 \\
-    SLTS          & 3.07 &  \textbf{0.85} & 0.102 & 0.278 \\
-    VS            & ---  &  0.92 & \textbf{0.101} & \textbf{0.274} \\
-    IR-Soft       & ---  &  0.91 & 0.105 & 0.321 \\
+    \multicolumn{7}{l}{\textit{ViT-B/16 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  &  4.99 &  5.36 &  1.06 & 0.111 & 0.678 \\
+    TS            & 2.04 &  4.48 &  4.40 &  0.93 & 0.106 & 0.346 \\
+    Platt (PS)    & ---  &  4.54 &  4.38 &  0.93 & 0.105 & 0.363 \\
+    HB-Hard       & ---  &  6.55 &  6.44 &  5.84 & 0.388 &  7.37$^\dagger$ \\
+    \multicolumn{7}{l}{\textit{ViT-B/16 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.07 &  \textbf{0.85} &  0.57 &  0.39 & 0.102 & 0.278 \\
+    SLTS          & 3.07 &  \textbf{0.85} &  0.56 &  0.39 & 0.102 & 0.278 \\
+    VS            & ---  &  0.92 &  \textbf{0.50} &  \textbf{0.32} & \textbf{0.101} & \textbf{0.274} \\
+    IR-Soft       & ---  &  0.91 &  0.61 &  0.43 & 0.105 & 0.321 \\
     \bottomrule
-    \multicolumn{5}{l}{\footnotesize $^\dagger$ HB assigns $(1-c)/(K{-}1)$ to non-predicted classes; large NLL/Br reflects this for $K=10$.} \\
+    \multicolumn{7}{l}{\footnotesize $^\dagger$ HB assigns $(1-c)/(K{-}1)$ to non-predicted classes; large NLL/Br reflects this for $K=10$.} \\
   \end{tabular}
 \end{table}
 
 \paragraph{Main results.}
-Table~\ref{tab:main} shows three consistent findings across both backbones:
-(i)~\emph{Voted-label baselines leave high ECE:} For ResNet-50, TS leaves ECE $= 4.29\%$; ViT-B/16 shows the same pattern ($4.48\%$).  Platt scaling exhibits the same behavior, confirming the failure is a fundamental consequence of the voted-label target, not method capacity.
-(ii)~\emph{Soft methods achieve substantially lower ECE:} For ResNet-50, SLTS achieves ECE $= 1.51\%$ (65\% relative reduction vs.\ TS); IR-Soft reaches $0.72\%$ (83\% reduction).  ViT-B/16 yields even stronger results: SLTS achieves $0.85\%$ (81\% reduction vs.\ TS).
-(iii)~\emph{Proper-scoring-rule metrics confirm the advantage:} VS achieves the best Br and NLL across both architectures (ResNet-50: Br $= 0.109$, NLL $= 0.289$; ViT-B/16: Br $= 0.101$, NLL $= 0.274$).  SLTS also substantially improves over TS (ResNet-50: NLL $0.293$ vs.\ $0.363$; ViT-B/16: $0.278$ vs.\ $0.346$).
+Table~\ref{tab:main} reveals a consistent pattern across both backbones.
+Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16), while soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE overall ($0.72\%$ on ResNet-50).
+Proper scoring rules confirm the advantage: VS attains the best Brier score and NLL across both architectures.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$), since true-label calibration reduces to voted-label calibration when $\pi(\cdot\mid x)$ is one-hot.  For highly ambiguous inputs (Q4), TS degrades to ECE $\approx 18\%$ while SLTS maintains $\approx 6\%$—a $3\times$ gap, directly confirming Proposition~\ref{prop:entropy-gap}.
@@ -381,7 +388,7 @@ Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unamb
 \label{sec:chaosnli}
 % ─────────────────────────────────────────────────────────────────────────────
 
-To demonstrate that the calibration gap extends beyond computer vision, we evaluate on \textbf{ChaosNLI} \citep{nie2020what}, a natural language inference benchmark with dense human annotations.
+We next evaluate on \textbf{ChaosNLI} \citep{nie2020what}, an NLI benchmark with dense human annotations.
 
 \paragraph{Dataset and models.}
 ChaosNLI provides 100 human annotations per example for subsets of the SNLI \citep{bowman2015large} and MultiNLI \citep{williams2018broad} dev sets.  Each annotator assigns one of 3 labels (entailment, neutral, contradiction).  We use the combined SNLI+MultiNLI subset ($n=3{,}113$ examples), split 50/50 into calibration and test sets stratified by voted label.  We evaluate two pre-trained NLI models:
@@ -396,51 +403,49 @@ ChaosNLI provides 100 human annotations per example for subsets of the SNLI \cit
     Soft-label methods achieve substantially better calibration for both NLI architectures.
   }
   \label{tab:chaosnli}
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{lccccc}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
     \toprule
-    Method & $T$ & ECE (\%) $\downarrow$
+    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
            & Br $\downarrow$ & NLL $\downarrow$ \\
     \midrule
-    \multicolumn{5}{l}{\textit{RoBERTa-Large --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 27.79 & 0.650 & 1.384 \\
-    TS            & 2.42 & 10.55 & 0.537 & 0.886 \\
-    Platt (PS)    & ---  & 11.16 & 0.530 & 0.875 \\
-    HB-Hard       & ---  &  8.37 & 0.562 & 0.963 \\
-    \multicolumn{5}{l}{\textit{RoBERTa-Large --- Soft-label methods (ours)}} \\
-    MCTS          & 3.41 &  3.23 & 0.520 & 0.862 \\
-    SLTS          & 3.41 &  3.22 & 0.520 & 0.862 \\
-    VS            & ---  &  3.46 & \textbf{0.518} & \textbf{0.857} \\
-    IR-Soft       & ---  &  \textbf{2.65} & 0.549 & 0.934 \\
+    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 27.79 & 27.77 & 18.61 & 0.650 & 1.384 \\
+    TS            & 2.42 & 10.55 & 10.38 &  7.30 & 0.537 & 0.886 \\
+    Platt (PS)    & ---  & 11.16 & 10.92 &  7.28 & 0.530 & 0.875 \\
+    HB-Hard       & ---  &  8.37 &  8.22 &  8.33 & 0.562 & 0.963 \\
+    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Soft-label methods (ours)}} \\
+    MCTS          & 3.41 &  3.23 &  \textbf{2.59} &  \textbf{4.62} & 0.520 & 0.862 \\
+    SLTS          & 3.41 &  3.22 &  \textbf{2.59} &  \textbf{4.62} & 0.520 & 0.862 \\
+    VS            & ---  &  3.46 &  3.07 &  5.13 & \textbf{0.518} & \textbf{0.857} \\
+    IR-Soft       & ---  &  \textbf{2.65} & \textbf{2.59} &  6.24 & 0.549 & 0.934 \\
     \midrule
-    \multicolumn{5}{l}{\textit{DeBERTa-v3-base --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 35.97 & 0.743 & 2.148 \\
-    TS            & 3.81 & 11.63 & 0.549 & 0.900 \\
-    Platt (PS)    & ---  & 12.43 & 0.539 & 0.896 \\
-    HB-Hard       & ---  & 10.75 & 0.574 & 0.989 \\
-    \multicolumn{5}{l}{\textit{DeBERTa-v3-base --- Soft-label methods (ours)}} \\
-    MCTS          & 5.27 &  3.49 & 0.529 & 0.876 \\
-    SLTS          & 5.28 &  3.45 & 0.529 & 0.877 \\
-    VS            & ---  &  3.91 & \textbf{0.525} & \textbf{0.869} \\
-    IR-Soft       & ---  &  \textbf{2.15} & 0.554 & 0.942 \\
+    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 35.97 & 35.92 & 24.02 & 0.743 & 2.148 \\
+    TS            & 3.81 & 11.63 & 11.57 &  8.48 & 0.549 & 0.900 \\
+    Platt (PS)    & ---  & 12.43 & 12.36 &  8.43 & 0.539 & 0.896 \\
+    HB-Hard       & ---  & 10.75 & 10.26 &  9.71 & 0.574 & 0.989 \\
+    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Soft-label methods (ours)}} \\
+    MCTS          & 5.27 &  3.49 &  3.38 &  6.56 & 0.529 & 0.876 \\
+    SLTS          & 5.28 &  3.45 &  3.36 &  6.53 & 0.529 & 0.877 \\
+    VS            & ---  &  3.91 &  \textbf{3.35} &  \textbf{6.46} & \textbf{0.525} & \textbf{0.869} \\
+    IR-Soft       & ---  &  \textbf{2.15} &  3.96 &  7.20 & 0.554 & 0.942 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \paragraph{Results.}
-Table~\ref{tab:chaosnli} confirms the phenomenon extends to natural language processing:
-(i)~\emph{Voted-label baselines leave high ECE:} TS leaves ECE $= 10.55\%$ for RoBERTa-Large and $11.63\%$ for DeBERTa-v3.  Platt scaling shows the same behavior ($11.16\%$ and $12.43\%$), confirming the failure is structural.
-(ii)~\emph{Soft methods achieve substantially lower ECE:} SLTS reduces ECE to $3.22\%$ for RoBERTa-Large (69\% reduction vs.\ TS) and $3.45\%$ for DeBERTa-v3 (70\% reduction).  IR-Soft achieves the best ECE ($2.65\%$ and $2.15\%$, up to 82\% reduction); VS achieves the best Br and NLL across both architectures, reflecting its per-class temperature flexibility.
-(iii)~\emph{Temperature direction:} RoBERTa-Large: $T_{\text{TS}}=2.42$, $T_{\text{SLTS}}=3.41$; DeBERTa-v3: $T_{\text{TS}}=3.81$, $T_{\text{SLTS}}=5.28$.  SLTS consistently requires higher temperature, confirming Proposition~\ref{prop:ts-bias} holds for language models.
-(iv)~\emph{Cross-modal validation:} The phenomenon is not specific to computer vision—it arises whenever annotators genuinely disagree, regardless of data modality.
+Table~\ref{tab:chaosnli} confirms the phenomenon extends to NLI.
+TS leaves ECE of $10.55\%$ (RoBERTa-Large) and $11.63\%$ (DeBERTa-v3); SLTS reduces these to $3.22\%$ and $3.45\%$ (69--70\% reduction), while IR-Soft reaches $2.65\%$ and $2.15\%$.
+The temperature direction is consistent with Proposition~\ref{prop:ts-bias}: SLTS requires substantially higher $T$ than TS ($3.41$ vs.\ $2.42$ for RoBERTa; $5.28$ vs.\ $3.81$ for DeBERTa), confirming the bias extends to language models.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{ISIC 2019: Skin Disease Diagnosis}
 \label{sec:isic2019}
 % ─────────────────────────────────────────────────────────────────────────────
 
-This experiment is inspired by the reader study of \citet{liu2020deep} (9 board-certified dermatologists annotating 963 clinical cases, aggregate inter-reader agreement $\approx 73\%$).  Because the full per-image annotations of \citet{liu2020deep} are not publicly released, we simulate $K\!=\!9$ dermatologist annotations per image using a clinically calibrated confusion matrix (detailed below), and use the publicly available \textbf{ISIC 2019} challenge dataset \citep{codella2018skin,combalia2019bcn}, covering 8 skin conditions (MEL, NV, BCC, AK, BKL, DF, VL, SCC) across ${\approx}25{,}000$ dermoscopic images.
+Inspired by the reader study of \citet{liu2020deep} (9 dermatologists, 73\% inter-reader agreement), we simulate $K\!=\!9$ annotations per image via a clinically calibrated confusion matrix (Appendix~\ref{app:isic-confusion}) on the \textbf{ISIC~2019} dataset \citep{codella2018skin,combalia2019bcn} (8 skin conditions, ${\approx}25{,}000$ images).
 
 \paragraph{Annotator model.}
 We simulate $K=9$ dermatologist annotations per image using a clinically calibrated $8\times 8$ confusion matrix (Appendix~\ref{app:isic-confusion}).  Agreement rates match \citet{liu2020deep} and \citet{haenssle2018man}: MEL/NV form the most confused pair (73\%/76\% diagonal), AK/BKL/SCC form a high-confusion cluster (62--67\%), and DF/VL are easy to distinguish (87\%/91\%).  Weighted overall agreement is 73\%, matching \citet{liu2020deep} exactly.
@@ -469,43 +474,43 @@ We evaluate two architectures on a stratified 70\%/15\%/15\% train/val/test spli
     Soft-label methods achieve substantially better calibration for both architectures.
   }
   \label{tab:isic}
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{lccccc}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
     \toprule
-    Method & $T$ & ECE (\%) $\downarrow$
+    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
            & Br $\downarrow$ & NLL $\downarrow$ \\
     \midrule
-    \multicolumn{5}{l}{\textit{EfficientNet-B4 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 25.76 & 0.600 & 2.710 \\
-    TS            & 1.79 & 18.54 & 0.560 & 1.653 \\
-    Platt (PS)    & ---  & 19.89 & 0.562 & 1.660 \\
-    HB-Hard       & ---  & 20.34 & 0.590 & 1.588 \\
-    \multicolumn{5}{l}{\textit{EfficientNet-B4 --- Soft-label methods (ours)}} \\
-    MCTS          & 4.47 &  9.69 & 0.528 & 1.146 \\
-    SLTS          & 4.46 &  9.71 & 0.528 & 1.146 \\
-    VS            & ---  &  9.03 & \textbf{0.524} & \textbf{1.121} \\
-    IR-Soft       & ---  &  \textbf{1.75} & 0.538 & 1.284 \\
+    \multicolumn{7}{l}{\textit{EfficientNet-B4 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 25.76 & 25.84 &  6.67 & 0.600 & 2.710 \\
+    TS            & 1.79 & 18.54 & 18.49 &  5.02 & 0.560 & 1.653 \\
+    Platt (PS)    & ---  & 19.89 & 19.81 &  5.24 & 0.562 & 1.659 \\
+    HB-Hard       & ---  & 20.34 & 20.28 &  5.94 & 0.590 & 1.588 \\
+    \multicolumn{7}{l}{\textit{EfficientNet-B4 --- Soft-label methods (ours)}} \\
+    MCTS          & 4.47 &  9.69 &  9.79 &  2.92 & 0.528 & 1.146 \\
+    SLTS          & 4.46 &  9.71 &  9.74 &  2.92 & 0.528 & 1.146 \\
+    VS            & ---  &  9.03 &  9.11 &  \textbf{2.42} & \textbf{0.524} & \textbf{1.121} \\
+    IR-Soft       & ---  &  \textbf{1.75} & \textbf{2.43} &  4.28 & 0.538 & 1.284 \\
     \midrule
-    \multicolumn{5}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 23.31 & 0.651 & 1.978 \\
-    TS            & 1.42 & 16.59 & 0.617 & 1.563 \\
-    Platt (PS)    & ---  & 17.19 & 0.597 & 1.583 \\
-    HB-Hard       & ---  & 17.71 & 0.662 & 1.608 \\
-    \multicolumn{5}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.15 &  7.06 & 0.586 & 1.234 \\
-    SLTS          & 3.15 &  6.96 & 0.586 & 1.234 \\
-    VS            & ---  &  8.50 & \textbf{0.568} & \textbf{1.198} \\
-    IR-Soft       & ---  &  \textbf{1.73} & 0.621 & 1.467 \\
+    \multicolumn{7}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 23.31 & 23.33 &  6.55 & 0.651 & 1.978 \\
+    TS            & 1.42 & 16.59 & 16.60 &  5.23 & 0.617 & 1.563 \\
+    Platt (PS)    & ---  & 17.19 & 17.17 &  4.74 & 0.597 & 1.583 \\
+    HB-Hard       & ---  & 17.71 & 17.72 &  6.60 & 0.662 & 1.608 \\
+    \multicolumn{7}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.15 &  7.06 &  6.74 &  3.31 & 0.586 & 1.233 \\
+    SLTS          & 3.15 &  6.96 &  6.68 &  3.29 & 0.586 & 1.233 \\
+    VS            & ---  &  8.50 &  8.59 &  \textbf{2.24} & \textbf{0.567} & \textbf{1.198} \\
+    IR-Soft       & ---  &  \textbf{1.73} & \textbf{1.59} &  5.78 & 0.621 & 1.466 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \paragraph{Results.}
-Table~\ref{tab:isic} confirms the phenomenon in the most clinically realistic setting of this paper:
-(i)~\emph{Voted-label baselines leave high ECE:} For EfficientNet-B4, TS leaves ECE $= 18.54\%$, reflecting the high inter-reader confusion of $K=9$ annotators with 73\% agreement.  IR-Soft achieves the best ECE ($1.75\%$, a 91\% reduction vs.\ TS); SLTS reaches $9.71\%$ (48\% reduction).  ViT-S/16 shows a similar pattern (SLTS: $6.96\%$, 58\% reduction; IR-Soft: $1.73\%$, 90\% reduction).
-(ii)~\emph{Temperature direction:} For EfficientNet-B4, $T_{\text{TS}}=1.79$ while $T_{\text{SLTS}}=4.46$—a much larger temperature is needed to match the soft 9-annotator distribution.  ViT-S/16 shows the same pattern ($T_{\text{TS}}=1.42$, $T_{\text{SLTS}}=3.15$), consistent with Proposition~\ref{prop:ts-bias}.
-(iii)~\emph{Proper scoring metrics:} VS achieves the best Br and NLL for both architectures (EfficientNet-B4: Br $=0.524$, NLL $=1.121$; ViT-S/16: Br $=0.568$, NLL $=1.198$), confirming soft-label calibration improves uncertainty quantification beyond ECE.
+Table~\ref{tab:isic} confirms the phenomenon in the most clinically realistic setting.
+With $K=9$ annotators and 73\% agreement, TS leaves ECE of $18.54\%$ (EfficientNet-B4) and $16.59\%$ (ViT-S/16).  SLTS reduces these to $9.71\%$ and $6.96\%$ (48--58\% reduction); IR-Soft achieves the lowest ECE ($1.75\%$ and $1.73\%$, $>$90\% reduction).
+The temperature gap is especially large: $T_{\text{SLTS}}=4.46$ vs.\ $T_{\text{TS}}=1.79$ for EfficientNet-B4, reflecting the high annotator disagreement.
+VS attains the best Brier score and NLL for both architectures.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion}
@@ -513,22 +518,22 @@ Table~\ref{tab:isic} confirms the phenomenon in the most clinically realistic se
 % ─────────────────────────────────────────────────────────────────────────────
 
 \paragraph{Connection to conformal prediction.}
-Our calibration gap is structurally related to the coverage gap identified by \citet{stutz2023conformal} in conformal prediction: both arise because voted labels replace the true annotator distribution with a degenerate one-hot target.  In their setting this causes undercoverage; in ours it causes overconfidence.
+Our calibration gap parallels the coverage gap of \citet{stutz2023conformal}: both arise from replacing the annotator distribution with a one-hot voted target.  In their setting this causes undercoverage; in ours, overconfidence.
 
 \paragraph{Practical implications.}
-The calibration gap grows with annotation entropy (Proposition~\ref{prop:entropy-gap}) and is negligible for unambiguous inputs.  It is practically significant wherever multiple rational annotators are available: medical image analysis \citep{liu2020deep}, natural language inference, autonomous perception.  Appendix~\ref{app:n-annotators} shows that $m\ge 5$ annotations per calibration example suffice to substantially close the gap, making soft calibration accessible without large annotation budgets.
+The gap is negligible for unambiguous inputs and grows with annotation entropy (Proposition~\ref{prop:entropy-gap}).  Appendix~\ref{app:n-annotators} shows that $m\ge 5$ annotations per calibration example suffice to substantially close the gap, making soft calibration practical even with modest annotation budgets.
 
 \paragraph{Limitations.}
-\emph{Annotation availability:} soft calibration requires multi-annotator labels at calibration time.
-\emph{Annotation quality:} we assume rational annotators; if annotations are purely noisy, $\pihat(x)$ is a biased estimate of $\pi(x)$.
-\emph{Evaluation:} computing ECE requires drawing true labels from $\pi(\cdot\mid x)$ at test time; in practice, even a single annotator per test example suffices.
+Soft calibration requires multi-annotator labels at calibration time.
+We assume rational annotators; purely noisy annotations would yield biased estimates of $\pi(x)$.
+True-label ECE evaluation requires sampling from $\pi(\cdot\mid x)$, though a single annotator per test example suffices in practice.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We introduced the problem of confidence calibration under ambiguous ground truth, formalized true-label calibration (Definition~\ref{def:true-cal}), and showed that standard Temperature Scaling leaves substantial miscalibration when fitted against voted labels.  The miscalibration grows monotonically with annotation entropy (Proposition~\ref{prop:entropy-gap}).  Our methods—SLTS, MCTS, VS, and IR-Soft—are post-hoc, require no retraining, and reduce ECE by 65--83\% on CIFAR-10H, 69--82\% on ChaosNLI, and 48--91\% on ISIC 2019 relative to TS.  The phenomenon is consistent across vision (ResNet-50, EfficientNet-B4, ViT-B/16, ViT-S/16) and language (RoBERTa-Large, DeBERTa-v3) architectures, confirming it is a property of the voted-label training objective rather than model or modality inductive bias.  Soft calibration should be the standard protocol wherever multiple annotations are available.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, and IR-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across three benchmarks and six architectures spanning vision and language.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default.
 
 \paragraph{Acknowledgements.}
 We thank the anonymous reviewers for their constructive feedback.
@@ -639,34 +644,34 @@ We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-clas
     \textbf{DermaMNIST results.}  $K=5$ annotators, overall agreement $64.7\%$.  Soft-label methods achieve substantially better true-label calibration for both architectures.
   }
   \label{tab:derm}
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{lccccc}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
     \toprule
-    Method & $T$ & ECE (\%) $\downarrow$
+    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
            & Br $\downarrow$ & NLL $\downarrow$ \\
     \midrule
-    \multicolumn{5}{l}{\textit{ResNet-18 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 35.32 & 0.775 & 2.798 \\
-    TS            & 1.93 & 24.10 & 0.690 & 1.656 \\
-    Platt (PS)    & ---  & 24.00 & 0.685 & 1.667 \\
-    HB-Hard       & ---  & 23.15 & 0.704 & 1.642 \\
-    \multicolumn{5}{l}{\textit{ResNet-18 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.70 &  4.23 & 0.620 & 1.369 \\
-    SLTS          & 3.70 &  4.22 & 0.620 & 1.369 \\
-    VS            & ---  &  4.40 & \textbf{0.619} & \textbf{1.355} \\
-    IR-Soft       & ---  &  \textbf{2.00} & 0.634 & 1.475 \\
+    \multicolumn{7}{l}{\textit{ResNet-18 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 34.35 & 34.26 & 10.15 & 0.767 & 2.689 \\
+    TS            & 1.86 & 23.05 & 22.82 &  6.97 & 0.686 & 1.654 \\
+    Platt (PS)    & ---  & 23.64 & 23.56 &  7.08 & 0.682 & 1.667 \\
+    HB-Hard       & ---  & 22.02 & 21.91 &  7.15 & 0.694 & 1.598 \\
+    \multicolumn{7}{l}{\textit{ResNet-18 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.52 &  4.69 &  4.47 &  3.57 & 0.622 & 1.376 \\
+    SLTS          & 3.51 &  4.61 &  4.44 &  3.56 & 0.622 & 1.376 \\
+    VS            & ---  &  4.45 &  3.83 &  \textbf{3.23} & \textbf{0.621} & \textbf{1.363} \\
+    IR-Soft       & ---  &  \textbf{2.15} & \textbf{2.34} &  4.55 & 0.634 & 1.440 \\
     \midrule
-    \multicolumn{5}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 37.49 & 0.790 & 3.576 \\
-    TS            & 2.45 & 24.89 & 0.685 & 1.669 \\
-    Platt (PS)    & ---  & 24.25 & 0.678 & 1.700 \\
-    HB-Hard       & ---  & 24.03 & 0.701 & 1.613 \\
-    \multicolumn{5}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 4.86 &  3.17 & 0.610 & 1.349 \\
-    SLTS          & 4.85 &  3.20 & 0.610 & 1.349 \\
-    VS            & ---  &  3.71 & \textbf{0.609} & \textbf{1.330} \\
-    IR-Soft       & ---  &  \textbf{2.86} & 0.628 & 1.426 \\
+    \multicolumn{7}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 37.12 & 37.10 & 10.82 & 0.786 & 3.766 \\
+    TS            & 2.60 & 24.36 & 24.26 &  7.29 & 0.683 & 1.664 \\
+    Platt (PS)    & ---  & 23.82 & 23.59 &  7.10 & 0.675 & 1.681 \\
+    HB-Hard       & ---  & 23.82 & 23.77 &  7.52 & 0.700 & 1.631 \\
+    \multicolumn{7}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
+    MCTS          & 5.13 &  \textbf{3.57} &  3.10 &  3.37 & \textbf{0.610} & 1.351 \\
+    SLTS          & 5.11 &  3.58 &  \textbf{3.06} &  3.37 & \textbf{0.610} & 1.350 \\
+    VS            & ---  &  4.03 &  3.71 &  \textbf{2.84} & 0.611 & \textbf{1.331} \\
+    IR-Soft       & ---  &  3.79 &  3.73 &  4.59 & 0.628 & 1.431 \\
     \bottomrule
   \end{tabular}
 \end{table}

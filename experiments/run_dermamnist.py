@@ -188,10 +188,12 @@ def train_model(
     weights       = counts.sum() / (N_CLASSES * counts)
     weights_t     = torch.tensor(weights, dtype=torch.float32, device=device)
 
-    model  = model.to(device)
-    opt    = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched  = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
-    crit   = nn.CrossEntropyLoss(weight=weights_t)
+    model   = model.to(device)
+    opt     = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    sched   = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
+    crit    = nn.CrossEntropyLoss(weight=weights_t)
+    use_amp = str(device) == "cuda"
+    scaler  = torch.cuda.amp.GradScaler() if use_amp else None
 
     best_acc, best_state = 0.0, None
 
@@ -201,10 +203,18 @@ def train_model(
         for x, y in tqdm(train_loader, desc=f"Epoch {epoch+1:2d}/{n_epochs}", leave=False):
             x, y = x.to(device), y.to(device).reshape(-1).long()
             opt.zero_grad()
-            out = model(x)
-            loss = crit(out, y)
-            loss.backward()
-            opt.step()
+            if use_amp:
+                with torch.cuda.amp.autocast():
+                    out  = model(x)
+                    loss = crit(out, y)
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
+            else:
+                out  = model(x)
+                loss = crit(out, y)
+                loss.backward()
+                opt.step()
             tr_loss    += loss.item() * len(y)
             tr_correct += (out.argmax(1) == y).sum().item()
             tr_total   += len(y)
