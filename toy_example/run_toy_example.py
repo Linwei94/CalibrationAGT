@@ -305,15 +305,28 @@ def main():
     print(f"  Temperature (TS):          T = {T_ts:.4f}  {'< 1 → MORE confident!' if T_ts < 1 else '> 1 → less confident'}")
     print(f"  Temperature (SLTS, ours):  T = {T_slts:.4f}")
     print("=" * 62)
-    print(f"  {'Method':<18} | ECE-Hard | ECE-Soft |  Gap Δ")
-    print("  " + "-"*55)
+    # ECE-Sampled: sample hard labels from π, compute ECE, average over 100 trials
+    def ece_sampled(probs, soft_labels, n_trials=100):
+        rng = np.random.default_rng(0)
+        N, K = soft_labels.shape
+        total = 0.0
+        for _ in range(n_trials):
+            sampled = np.array([rng.choice(K, p=soft_labels[i]) for i in range(N)])
+            sampled_1hot = np.eye(K)[sampled]
+            e, _ = ece_bins(probs, sampled_1hot)
+            total += e
+        return total / n_trials
+
+    print(f"  {'Method':<18} | ECE-Hard | ECE-Samp | ECE-Soft |  Gap Δ")
+    print("  " + "-"*66)
     all_probs = [("Uncalibrated  ", p_raw), ("TS            ", p_ts), ("SLTS (ours)   ", p_slts)]
     if _have_extra:
         all_probs.insert(2, ("Platt (PS)    ", p_ps))
         all_probs.insert(3, ("HB-Hard       ", p_hb))
     for name, p in all_probs:
         eh, _ = ece_bins(p, yh1hot); es, _ = ece_bins(p, ys_te)
-        print(f"  {name} | {eh:.4f}   | {es:.4f}   | {es-eh:+.4f}")
+        esamp = ece_sampled(p, ys_te)
+        print(f"  {name} | {eh:.4f}   | {esamp:.4f}   | {es:.4f}   | {es-eh:+.4f}")
     print("\n  --- Stratified ECE-Soft ---")
     for name, p in [("TS          ", p_ts), ("SLTS (ours) ", p_slts)]:
         ea, _ = ece_bins(p[amb_te],  ys_te[amb_te])

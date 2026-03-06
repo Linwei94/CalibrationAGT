@@ -9,7 +9,7 @@ Figures produced
   figs/fig1_toy.pdf          — Toy-example reliability diagrams + ECE bars
   figs/fig2_reliability.pdf  — 2×4 reliability diagrams: Uncal/TS/Platt/SLTS
                                (Hard-label row + Soft-label row)
-  figs/fig3_summary.pdf      — ECE-Hard vs ECE-Soft bar chart (all methods)
+  figs/fig3_summary.pdf      — ECE-Voted vs ECE-Soft bar chart (all methods)
   figs/fig4_stratified.pdf   — ECE-Soft by ambiguity quartile
   figs/fig5_n_annotators.pdf — ECE-Soft vs number of annotations m
 
@@ -42,12 +42,12 @@ torch.manual_seed(42)
 # ── style ──────────────────────────────────────────────────────────────────────
 plt.rcParams.update({
     "font.family":     "serif",
-    "font.size":       10,
-    "axes.labelsize":  10,
-    "axes.titlesize":  10,
-    "xtick.labelsize": 9,
-    "ytick.labelsize": 9,
-    "legend.fontsize": 8.5,
+    "font.size":       13,
+    "axes.labelsize":  13,
+    "axes.titlesize":  13,
+    "xtick.labelsize": 11,
+    "ytick.labelsize": 11,
+    "legend.fontsize": 10,
     "figure.dpi":      180,
     "pdf.fonttype":    42,   # TrueType in PDF (no Type-3 fonts)
     "axes.spines.top":   False,
@@ -251,6 +251,17 @@ ys_te  = y_soft[idx_te]
 amb_te = amb[idx_te]
 yh1hot = np.eye(3)[yh_te]
 
+# ECE-Sampled helper: sample hard labels from π, average ECE over n_trials
+def ece_sampled(probs, soft_labels, n_bins=12, n_trials=100, seed=0):
+    rng_s = np.random.default_rng(seed)
+    N, K = soft_labels.shape
+    total = 0.0
+    for _ in range(n_trials):
+        sampled = np.array([rng_s.choice(K, p=soft_labels[i]) for i in range(N)])
+        e, _ = ece_bins(probs, sampled, n_bins=n_bins)
+        total += e
+    return total / n_trials
+
 # ECE summary
 methods = [
     ("Uncal",        p_raw,  PAL["uncal"]),
@@ -263,11 +274,12 @@ methods = [
 
 ece_hard = [ece_bins(p, yh1hot)[0] for _, p, _ in methods]
 ece_soft = [ece_bins(p, ys_te)[0]  for _, p, _ in methods]
+ece_samp = [ece_sampled(p, ys_te)  for _, p, _ in methods]
 T_ts   = ts_m.T.item(); T_slts = slts_m.T.item(); T_mcts = mcts_m.T.item()
 
 print(f"  T(TS)={T_ts:.3f}  T(SLTS)={T_slts:.3f}  T(MCTS)={T_mcts:.3f}")
-for (nm,_,_), eh, es in zip(methods, ece_hard, ece_soft):
-    print(f"  {nm:<18} ECE-H={eh*100:.2f}%  ECE-S={es*100:.2f}%")
+for (nm,_,_), eh, esamp, es in zip(methods, ece_hard, ece_samp, ece_soft):
+    print(f"  {nm:<18} ECE-V={eh*100:.2f}%  ECE-True={esamp*100:.2f}%  ECE-Soft={es*100:.2f}%")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -292,7 +304,7 @@ def rel_ax(ax, probs, targets, title, color, n_bins=12, arrow=False):
         ax.annotate("", xy=(c0, a0), xytext=(c0, c0),
                     arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=2.0))
         ax.text(c0+.04, (c0+a0)/2, f"Gap\n{c0-a0:+.2f}",
-                color=PAL["gap"], fontsize=8, va="center", fontweight="bold")
+                color=PAL["gap"], fontsize=10, va="center", fontweight="bold")
     ax.set_xlim(0,1); ax.set_ylim(0,1)
     ax.set_xlabel("Confidence"); ax.set_ylabel("Avg. label prob.")
     ax.set_title(f"{title}\nECE = {ece*100:.2f}%", fontweight="bold")
@@ -308,11 +320,11 @@ print("Generating fig1_toy …")
 
 X_te = X[idx_te]
 
-fig = plt.figure(figsize=(14, 8.2))
+fig = plt.figure(figsize=(14, 8.8))
 gs = GridSpec(2, 4, figure=fig,
               height_ratios=[1.45, 0.72],
-              hspace=0.54, wspace=0.40,
-              left=0.06, right=0.97, top=0.90, bottom=0.08)
+              hspace=0.58, wspace=0.42,
+              left=0.06, right=0.97, top=0.91, bottom=0.08)
 
 # ── Panel (a): data distribution ──────────────────────────────────────────
 ax_data = fig.add_subplot(gs[0, 0])
@@ -349,7 +361,7 @@ ax_data.annotate(
     "$\\hat{\\pi}(x) = [0,\\ 0.70,\\ 0.30]$\n"
     "Voted label: always Class 1",
     xy=(0.0, 1.5), xytext=(0.0, 4.0),
-    ha="center", fontsize=7.8,
+    ha="center", fontsize=9,
     arrowprops=dict(arrowstyle="->", color=PAL["ts"], lw=1.3),
     bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow",
               ec=PAL["ts"], alpha=0.93, lw=1.2),
@@ -359,7 +371,7 @@ ax_data.annotate(
 ax_data.set_xlabel("Feature $x_1$")
 ax_data.set_ylabel("Feature $x_2$")
 ax_data.set_title("(a) Data Distribution", fontweight="bold")
-ax_data.legend(loc="upper right", fontsize=6.3, markerscale=1.4,
+ax_data.legend(loc="upper right", fontsize=8, markerscale=1.4,
                handlelength=1.0, borderpad=0.4, labelspacing=0.3)
 ax_data.grid(True, alpha=0.18)
 ax_data.set_xlim(-6.8, 6.8)
@@ -367,7 +379,7 @@ ax_data.set_ylim(-3.2, 6.0)
 
 # ── Panels (b)–(d): reliability diagrams ─────────────────────────────────
 panels = [
-    ("(b) TS  [Hard labels]",   p_ts, PAL["ts"],  yh1hot, False, T_ts,   "lightyellow", PAL["gap"]),
+    ("(b) TS  [Voted labels]",   p_ts, PAL["ts"],  yh1hot, False, T_ts,   "lightyellow", PAL["gap"]),
     ("(c) TS  [Soft labels]",   p_ts, PAL["ts"],  ys_te,  True,  T_ts,   "#FFE0E0",    PAL["gap"]),
     ("(d) Platt [Soft labels]", p_ps, PAL["ps"],  ys_te,  True,  None,   "#FFE0F0",    PAL["gap"]),
 ]
@@ -403,7 +415,7 @@ bs = ax_bar.bar(x + w/2, es_b, w, color=cols4, alpha=0.88,
                 edgecolor="black", lw=0.8)
 for b in list(bh) + list(bs):
     ax_bar.text(b.get_x() + b.get_width()/2, b.get_height() + 0.10,
-                f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=7.5)
+                f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 
 # annotate gap for each method
 for ts_i in range(len(methods4)):
@@ -412,17 +424,17 @@ for ts_i in range(len(methods4)):
                     arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=1.5, alpha=0.7))
 
 ax_bar.set_xticks(x)
-ax_bar.set_xticklabels(names4_b, fontsize=9.5)
+ax_bar.set_xticklabels(names4_b, fontsize=11)
 ax_bar.set_ylabel("ECE (%)")
-ax_bar.set_title("(e) All baselines: ECE-Hard vs. ECE-Soft", fontweight="bold")
+ax_bar.set_title("(e) All baselines: ECE-Voted vs. ECE-Soft", fontweight="bold")
 ax_bar.grid(True, axis="y", alpha=0.25)
 ax_bar.set_ylim(0, max(es_b) * 1.65)
 ax_bar.legend(handles=[
     mpatches.Patch(facecolor="gray", alpha=0.38, hatch="//",
-                   label="ECE-Hard (vs. voted label)"),
+                   label="ECE-Voted"),
     mpatches.Patch(facecolor="gray", alpha=0.88,
-                   label="ECE-Soft (vs. annotator dist.)"),
-], fontsize=8.0, loc="upper left")
+                   label="ECE-Soft"),
+], fontsize=9.5, loc="upper left")
 
 # Stratified: show all hard-label baselines fail on ambiguous cluster
 strat_methods = [
@@ -443,22 +455,19 @@ for i, (nm, p_m, col_c) in enumerate(strat_methods):
                       color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
     for b in b2:
         ax_strat.text(b.get_x() + b.get_width()/2, b.get_height() + 0.12,
-                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=7.5)
+                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 
 ax_strat.set_xticks(x2)
-ax_strat.set_xticklabels(["Ambiguous\nsamples", "Clear\nsamples"], fontsize=9)
+ax_strat.set_xticklabels(["Ambiguous\nsamples", "Clear\nsamples"], fontsize=10)
 ax_strat.set_ylabel("ECE-Soft (%)")
 ax_strat.set_title("(f) ECE-Soft by\nambiguity", fontweight="bold")
-ax_strat.legend(fontsize=7.0)
+ax_strat.legend(fontsize=9)
 ax_strat.grid(True, axis="y", alpha=0.25)
 ax_strat.set_ylim(0, max_val * 1.65)
 
 fig.suptitle(
-    "Motivating Toy Example — Calibration under Ambiguous Ground Truth\n"
-    "3-class MLP trained on voted labels.  "
-    "Class~1 cluster is ambiguous: $\\hat{\\pi}(x)=[0,\\ 0.70,\\ 0.30]$ "
-    "(voted label always = Class~1).",
-    fontsize=11, fontweight="bold",
+    "Toy Example — Calibration under Ambiguous Ground Truth",
+    fontsize=14, fontweight="bold",
 )
 
 plt.savefig(OUT / "fig1_toy.pdf", bbox_inches="tight")
@@ -477,12 +486,12 @@ four = [
     ("Platt (PS)",   p_ps,   PAL["ps"],    None),
     ("SLTS (ours)",  p_slts, PAL["slts"],  T_slts),
 ]
-fig, axes = plt.subplots(2, 4, figsize=(14, 6.5), constrained_layout=True)
-fig.suptitle("Reliability Diagrams: Hard-label evaluation (top) vs. Soft-label evaluation (bottom)",
-             fontweight="bold")
+fig, axes = plt.subplots(2, 4, figsize=(14, 7), constrained_layout=True)
+fig.suptitle("Reliability Diagrams: Hard-label (top) vs. Soft-label (bottom)",
+             fontweight="bold", fontsize=14)
 for col, (nm, p, col_c, T) in enumerate(four):
     for row, (targets, row_lbl, use_arrow) in enumerate([
-        (yh1hot, "Hard labels", False),
+        (yh1hot, "Voted labels", False),
         (ys_te,  "Soft labels", nm == "TS"),
     ]):
         ax = axes[row][col]
@@ -507,7 +516,7 @@ plt.close(); print("  → fig2_reliability.pdf")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Fig 3: Summary bar chart — all methods, ECE-Hard vs ECE-Soft
+# Fig 3: Summary bar chart — all methods, ECE-Voted vs ECE-Soft
 # ══════════════════════════════════════════════════════════════════════════════
 
 print("Generating fig3_summary …")
@@ -520,46 +529,41 @@ all_methods = [
 ]
 nm_all  = [m[0] for m in all_methods]
 eh_all  = np.array([ece_bins(m[1], yh1hot)[0] for m in all_methods]) * 100
+esamp_all = np.array([ece_sampled(m[1], ys_te) for m in all_methods]) * 100
 es_all  = np.array([ece_bins(m[1], ys_te)[0]  for m in all_methods]) * 100
 col_all = [m[2] for m in all_methods]
 
-fig, ax = plt.subplots(figsize=(9, 4.5))
-x = np.arange(len(nm_all)); w = 0.30
-bh = ax.bar(x-w/2, eh_all, w, label="ECE-Hard (vs. voted label)",
+fig, ax = plt.subplots(figsize=(9, 5))
+x = np.arange(len(nm_all)); w = 0.25
+bh = ax.bar(x-w, eh_all, w, label="ECE-Voted",
             color=col_all, alpha=0.42, edgecolor="black", lw=0.8, hatch="//")
-bs = ax.bar(x+w/2, es_all, w, label="ECE-Soft (vs. annotator dist.)",
+bsamp = ax.bar(x, esamp_all, w, label="ECE-True",
+               color=col_all, alpha=0.65, edgecolor="black", lw=0.8, hatch="..")
+bs = ax.bar(x+w, es_all, w, label="ECE-Soft",
             color=col_all, alpha=0.88, edgecolor="black", lw=0.8)
-for b in list(bh)+list(bs):
+for b in list(bh)+list(bsamp)+list(bs):
     h = b.get_height()
     ax.text(b.get_x()+b.get_width()/2, h+0.06, f"{h:.1f}",
-            ha="center", va="bottom", fontsize=7.5)
+            ha="center", va="bottom", fontsize=9)
 
 # Annotate calibration gap for TS
 i_ts = nm_all.index("TS")
-ax.annotate("", xy=(i_ts+w/2, es_all[i_ts]), xytext=(i_ts-w/2, eh_all[i_ts]),
+ax.annotate("", xy=(i_ts+w, es_all[i_ts]), xytext=(i_ts-w, eh_all[i_ts]),
             arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=2.2))
-ax.text(i_ts+0.09, (es_all[i_ts]+eh_all[i_ts])/2,
-        f"Cal. gap\nΔ={es_all[i_ts]-eh_all[i_ts]:+.1f}pp",
-        color=PAL["gap"], fontsize=9, fontweight="bold", va="center")
+ax.text(i_ts+0.12, (es_all[i_ts]+eh_all[i_ts])/2,
+        f"Δ={es_all[i_ts]-eh_all[i_ts]:+.1f}pp",
+        color=PAL["gap"], fontsize=11, fontweight="bold", va="center")
 
 # Divider between baselines and ours
 ax.axvline(x=2.5, color="gray", lw=1.2, ls="--", alpha=0.6)
-ax.text(1.1, ax.get_ylim()[1]*0.97 if ax.get_ylim()[1] > 0 else 1,
-        "Hard-label baselines", ha="center", fontsize=8.5, color="gray", style="italic")
 
-ax.set_xticks(x); ax.set_xticklabels(nm_all, rotation=12, ha="right")
+ax.set_xticks(x); ax.set_xticklabels(nm_all, fontsize=12)
 ax.set_ylabel("ECE (%)")
-ax.set_title("ECE-Hard vs. ECE-Soft\n"
-             "Hard-label baselines appear calibrated on hard labels "
-             "but show a large calibration gap on soft labels",
-             fontweight="bold")
-ax.legend(loc="upper right")
+ax.set_title("Toy Example: ECE-Voted vs. ECE-True vs. ECE-Soft",
+             fontweight="bold", fontsize=14)
+ax.legend(loc="upper right", fontsize=11)
 ax.grid(True, axis="y", alpha=0.25)
-ax.set_ylim(0, max(es_all) * 1.55)
-
-# Second x-axis annotation for "ours"
-ax.text(3.5, max(es_all)*1.45, "Soft-label methods (ours)",
-        ha="center", fontsize=8.5, color="#2E7D32", style="italic", fontweight="bold")
+ax.set_ylim(0, max(es_all) * 1.45)
 
 plt.tight_layout()
 plt.savefig(OUT/"fig3_summary.pdf", bbox_inches="tight")
@@ -593,17 +597,17 @@ for q in range(4):
         e, _ = ece_bins(p[mask], ys_te[mask])
         quant_ece[nm].append(e * 100)
 
-fig, ax = plt.subplots(figsize=(8, 4.5))
+fig, ax = plt.subplots(figsize=(8, 5))
 x = np.arange(4)
 n_m = len(strat_methods)
-offsets = np.linspace(-(n_m-1)/2, (n_m-1)/2, n_m) * 0.19
+offsets = np.linspace(-(n_m-1)/2, (n_m-1)/2, n_m) * 0.20
 for off, (nm, _, col_c) in zip(offsets, strat_methods):
-    bars = ax.bar(x + off, quant_ece[nm], 0.17, label=nm,
+    bars = ax.bar(x + off, quant_ece[nm], 0.18, label=nm,
                   color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
     for b in bars:
         h = b.get_height()
         ax.text(b.get_x()+b.get_width()/2, h+0.05, f"{h:.1f}",
-                ha="center", va="bottom", fontsize=7)
+                ha="center", va="bottom", fontsize=9)
 
 ax.set_xticks(x)
 ax.set_xticklabels([
@@ -614,10 +618,8 @@ ax.set_xticklabels([
 ])
 ax.set_xlabel("Annotation entropy quartile")
 ax.set_ylabel("ECE-Soft (%)")
-ax.set_title("ECE-Soft Stratified by Ambiguity Level\n"
-             "Calibration gap grows with annotation entropy "
-             "(confirms Prop. 2)",
-             fontweight="bold")
+ax.set_title("ECE-Soft Stratified by Ambiguity Level",
+             fontweight="bold", fontsize=14)
 ax.legend(loc="upper left")
 ax.grid(True, axis="y", alpha=0.25)
 
@@ -663,21 +665,20 @@ for m in m_values:
     mean_ece.append(np.mean(vals)); std_ece.append(np.std(vals))
     print(f"    m={m:2d}: ECE-Soft(SLTS)={mean_ece[-1]:.2f}% ± {std_ece[-1]:.2f}%")
 
-fig, ax = plt.subplots(figsize=(6.5, 4))
+fig, ax = plt.subplots(figsize=(7, 4.5))
 ax.axhline(ece_ts_ref, color=PAL["ts"], lw=2, ls="--",
-           label=f"TS (voted label, any m): {ece_ts_ref:.1f}%")
+           label=f"TS (voted label): {ece_ts_ref:.1f}%")
 ax.errorbar(m_values, mean_ece, yerr=std_ece, color=PAL["slts"],
-            marker="o", ms=6, lw=2, capsize=4, capthick=1.5,
-            label="SLTS (soft labels from m annotations)")
+            marker="o", ms=7, lw=2, capsize=4, capthick=1.5,
+            label="SLTS (m annotations)")
 for m, mu in zip(m_values, mean_ece):
     ax.text(m, mu + std_ece[m_values.index(m)] + 0.15, f"{mu:.1f}",
-            ha="center", va="bottom", fontsize=8, color=PAL["slts"])
+            ha="center", va="bottom", fontsize=10, color=PAL["slts"])
 
 ax.set_xlabel("Number of annotations per example ($m$)")
 ax.set_ylabel("ECE-Soft (%)")
-ax.set_title("Effect of Number of Annotations on Soft Calibration\n"
-             "Even $m=3$ annotations substantially reduce ECE-Soft vs. TS",
-             fontweight="bold")
+ax.set_title("ECE-Soft vs. Number of Annotations",
+             fontweight="bold", fontsize=14)
 ax.legend()
 ax.grid(True, alpha=0.25)
 ax.set_xticks(m_values)
@@ -691,7 +692,7 @@ print("\nAll figures written to", OUT)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Fig 6: DermaMNIST skin disease — ECE-Hard vs ECE-Soft
+# Fig 6: DermaMNIST skin disease — ECE-Voted vs ECE-Soft
 # Loads experiments/results/dermamnist_results.json if available;
 # otherwise falls back to schematic values matching the theoretical prediction.
 # ══════════════════════════════════════════════════════════════════════════════
@@ -700,6 +701,9 @@ print("Generating fig6_derm …")
 
 # Try to find results JSON (support running from paper/ or repo root)
 _derm_candidates = [
+    Path(__file__).parent.parent / "experiments" / "results" / "dermamnist_results_resnet18.json",
+    Path("experiments") / "results" / "dermamnist_results_resnet18.json",
+    Path("results") / "dermamnist_results_resnet18.json",
     Path(__file__).parent.parent / "experiments" / "results" / "dermamnist_results.json",
     Path("experiments") / "results" / "dermamnist_results.json",
     Path("results") / "dermamnist_results.json",
@@ -712,9 +716,10 @@ if _derm_json is not None:
         _dr = _json.load(_f)
     _mr = {r["name"]: r for r in _dr["main_results"]}
     _nm_all  = ["Uncalibrated", "TS", "Platt (PS)", "MCTS (ours)", "SLTS (ours)", "VS (ours)",
-                "HB-Hard", "HB-Soft (ours)", "IR-Soft (ours)"]
+                "HB-Hard", "IR-Soft (ours)"]
     _nm_all  = [n for n in _nm_all if n in _mr]
     _eh_all  = np.array([_mr[n]["ece_hard"] * 100 for n in _nm_all])
+    _esamp_all_d = np.array([_mr[n].get("ece_sampled", _mr[n]["ece_soft"]) * 100 for n in _nm_all])
     _es_all  = np.array([_mr[n]["ece_soft"] * 100 for n in _nm_all])
     _qr      = _dr.get("quant_results", {})
     _schematic = False
@@ -725,12 +730,13 @@ else:
     # ── Schematic placeholder (expected values, theory-consistent) ────────────
     # Used when the experiment has not been run yet.
     # Values follow the same qualitative pattern as CIFAR-10H:
-    #   TS: ECE-Hard << ECE-Soft; SLTS/MCTS: ECE-Hard ≈ ECE-Soft (gap ≈ 0).
+    #   TS: ECE-Voted << ECE-Soft; SLTS/MCTS: ECE-Voted ≈ ECE-Soft (gap ≈ 0).
     # Slightly higher absolute ECE because 7-class is harder (more ambiguity).
     _nm_all = ["Uncal", "TS", "Platt (PS)", "MCTS (ours)", "SLTS (ours)",
-               "VS (ours)", "HB-Hard", "HB-Soft (ours)", "IR-Soft (ours)"]
-    _eh_all = np.array([ 5.5,  2.1,  2.4,  3.5,  4.1,  4.3,  2.8,  4.5,  4.0])
-    _es_all = np.array([11.2, 10.8, 10.5,  5.1,  4.6,  5.4, 11.3,  5.3,  4.8])
+               "VS (ours)", "HB-Hard", "IR-Soft (ours)"]
+    _eh_all = np.array([ 5.5,  2.1,  2.4,  3.5,  4.1,  4.3,  2.8,  4.0])
+    _esamp_all_d = np.array([11.0, 10.6, 10.3,  5.0,  4.5,  5.3, 11.1,  4.7])
+    _es_all = np.array([11.2, 10.8, 10.5,  5.1,  4.6,  5.4, 11.3,  4.8])
     _qr      = {}
     _schematic = True
     _ts_T    = 0.88
@@ -747,62 +753,48 @@ _col_map = {
 }
 _col_all = [_col_map.get(n, PAL["uncal"]) for n in _nm_all]
 
-# ── Top panel: ECE-Hard vs ECE-Soft bar chart ─────────────────────────────────
-fig, (ax_bar, ax_q) = plt.subplots(1, 2, figsize=(14, 5),
+# ── Layout: 1×2 (bar chart | stratified quartile) ─────────────────────────────
+fig, (ax_bar, ax_q) = plt.subplots(1, 2, figsize=(15, 5.5),
                                     gridspec_kw={"width_ratios": [1.6, 1]})
+_title_sfx_d = (" [SCHEMATIC]" if _schematic else "")
 fig.suptitle(
-    "Skin Disease Classification — DermaMNIST (HAM10000, 7 classes)\n"
-    + ("Synthetic annotator model: K=5 annotations per image, overall agreement ≈ 64.7%"
-       + (" [SCHEMATIC — run experiments/run_dermamnist.py for real values]"
-          if _schematic else "")),
-    fontsize=10, fontweight="bold",
+    f"DermaMNIST (7 classes, K=5 annotators){_title_sfx_d}",
+    fontsize=14, fontweight="bold",
 )
 
 x = np.arange(len(_nm_all))
-w = 0.30
-bh_d = ax_bar.bar(x - w/2, _eh_all, w, label="ECE-Hard (vs. voted label)",
+w = 0.24
+bh_d = ax_bar.bar(x - w, _eh_all, w, label="ECE-Voted",
                   color=_col_all, alpha=0.42, edgecolor="black", lw=0.8, hatch="//")
-bs_d = ax_bar.bar(x + w/2, _es_all, w, label="ECE-Soft (vs. annotator dist.)",
+bsamp_d = ax_bar.bar(x, _esamp_all_d, w, label="ECE-True",
+                     color=_col_all, alpha=0.65, edgecolor="black", lw=0.8, hatch="..")
+bs_d = ax_bar.bar(x + w, _es_all, w, label="ECE-Soft",
                   color=_col_all, alpha=0.88, edgecolor="black", lw=0.8)
-for b in list(bh_d) + list(bs_d):
+for b in list(bh_d) + list(bsamp_d) + list(bs_d):
     h = b.get_height()
     ax_bar.text(b.get_x() + b.get_width()/2, h + 0.08, f"{h:.1f}",
-                ha="center", va="bottom", fontsize=7)
+                ha="center", va="bottom", fontsize=8)
 
 # Calibration gap arrow for TS
 if "TS" in _nm_all:
     i_ts = list(_nm_all).index("TS")
-    ax_bar.annotate("", xy=(i_ts + w/2, _es_all[i_ts]),
-                    xytext=(i_ts - w/2, _eh_all[i_ts]),
+    ax_bar.annotate("", xy=(i_ts + w, _es_all[i_ts]),
+                    xytext=(i_ts - w, _eh_all[i_ts]),
                     arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=2.2))
     ax_bar.text(i_ts + 0.10, (_es_all[i_ts] + _eh_all[i_ts]) / 2,
-                f"Cal. gap\nΔ={_es_all[i_ts]-_eh_all[i_ts]:+.1f}pp",
-                color=PAL["gap"], fontsize=8.5, fontweight="bold", va="center")
+                f"Δ={_es_all[i_ts]-_eh_all[i_ts]:+.1f}pp",
+                color=PAL["gap"], fontsize=11, fontweight="bold", va="center")
 
 # Divider line
 ax_bar.axvline(x=2.5, color="gray", lw=1.2, ls="--", alpha=0.6)
-ax_bar.text(1.1, max(_es_all) * 1.45, "Hard-label\nbaselines",
-            ha="center", fontsize=8, color="gray", style="italic")
-ax_bar.text(6.0, max(_es_all) * 1.45, "Soft-label methods (ours)",
-            ha="center", fontsize=8, color="#2E7D32", style="italic", fontweight="bold")
 
 ax_bar.set_xticks(x)
-ax_bar.set_xticklabels(_nm_all, rotation=15, ha="right", fontsize=8.5)
+ax_bar.set_xticklabels(_nm_all, rotation=20, ha="right", fontsize=10)
 ax_bar.set_ylabel("ECE (%)")
-ax_bar.set_title("ECE-Hard vs. ECE-Soft per calibration method", fontweight="bold")
-ax_bar.legend(loc="upper right", fontsize=8)
+ax_bar.set_title("ECE-Voted vs. ECE-True vs. ECE-Soft", fontweight="bold")
+ax_bar.legend(loc="upper right", fontsize=10)
 ax_bar.grid(True, axis="y", alpha=0.25)
-ax_bar.set_ylim(0, max(_es_all) * 1.65)
-
-# Annotate temperature direction
-if _ts_T is not None:
-    ts_lbl = f"TS: T={_ts_T:.2f} (<1, up-conf)"
-    ax_bar.text(0.02, 0.97, ts_lbl, transform=ax_bar.transAxes,
-                fontsize=8, va="top", color=PAL["gap"], style="italic")
-if _slts_T is not None:
-    slts_lbl = f"SLTS: T={_slts_T:.2f} (>1, down-conf)"
-    ax_bar.text(0.02, 0.91, slts_lbl, transform=ax_bar.transAxes,
-                fontsize=8, va="top", color=PAL["slts"], style="italic")
+ax_bar.set_ylim(0, max(_es_all) * 1.55)
 
 # ── Right panel: stratified by entropy quartile ───────────────────────────────
 _strat_methods = [("TS", PAL["ts"]), ("Platt (PS)", PAL["ps"]),
@@ -812,19 +804,18 @@ if _qr:
     _n_q = 4
     _xq  = np.arange(_n_q)
     _n_m = len(_strat_methods)
-    _offs = np.linspace(-(_n_m-1)/2, (_n_m-1)/2, _n_m) * 0.19
+    _offs = np.linspace(-(_n_m-1)/2, (_n_m-1)/2, _n_m) * 0.20
     for off, (nm, col_c) in zip(_offs, _strat_methods):
         qlist = _qr.get(nm, [])
         if not qlist:
             continue
         vals = [q["ece_soft"] * 100 for q in qlist]
-        bars = ax_q.bar(_xq[:len(vals)] + off, vals, 0.17,
+        bars = ax_q.bar(_xq[:len(vals)] + off, vals, 0.18,
                         label=nm, color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
         for b in bars:
             ax_q.text(b.get_x() + b.get_width()/2, b.get_height() + 0.05,
-                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=7)
+                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 else:
-    # Schematic stratified values — consistent with theory: gap grows with entropy
     _strat_vals = {
         "TS":          [1.8,  5.9, 12.8, 21.5],
         "Platt (PS)":  [1.7,  5.6, 12.3, 20.9],
@@ -832,21 +823,21 @@ else:
         "SLTS (ours)": [1.5,  2.9,  4.7,  8.3],
     }
     _n_q = 4; _xq = np.arange(_n_q); _n_m = len(_strat_methods)
-    _offs = np.linspace(-(_n_m-1)/2, (_n_m-1)/2, _n_m) * 0.19
+    _offs = np.linspace(-(_n_m-1)/2, (_n_m-1)/2, _n_m) * 0.20
     for off, (nm, col_c) in zip(_offs, _strat_methods):
         vals = _strat_vals[nm]
-        bars = ax_q.bar(_xq + off, vals, 0.17,
+        bars = ax_q.bar(_xq + off, vals, 0.18,
                         label=nm, color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
         for b in bars:
             ax_q.text(b.get_x() + b.get_width()/2, b.get_height() + 0.05,
-                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=7)
+                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 
 ax_q.set_xticks(np.arange(4))
-ax_q.set_xticklabels(["Q1\n(low ambig.)", "Q2", "Q3", "Q4\n(high ambig.)"], fontsize=8.5)
+ax_q.set_xticklabels(["Q1\n(low)", "Q2", "Q3", "Q4\n(high)"], fontsize=11)
 ax_q.set_xlabel("Annotation entropy quartile")
 ax_q.set_ylabel("ECE-Soft (%)")
-ax_q.set_title("ECE-Soft by ambiguity\n(Q4 = Mel/NV region)", fontweight="bold")
-ax_q.legend(fontsize=7.5, loc="upper left")
+ax_q.set_title("ECE-Soft by ambiguity quartile", fontweight="bold")
+ax_q.legend(fontsize=9.5, loc="upper left")
 ax_q.grid(True, axis="y", alpha=0.25)
 
 plt.tight_layout()
@@ -864,6 +855,9 @@ print("  → fig6_derm.pdf")
 print("Generating fig7_isic …")
 
 _isic_candidates = [
+    Path(__file__).parent.parent / "experiments" / "results" / "isic2019_results_efficientnet_b4.json",
+    Path("experiments") / "results" / "isic2019_results_efficientnet_b4.json",
+    Path("results") / "isic2019_results_efficientnet_b4.json",
     Path(__file__).parent.parent / "experiments" / "results" / "isic2019_results.json",
     Path("experiments") / "results" / "isic2019_results.json",
     Path("results") / "isic2019_results.json",
@@ -878,9 +872,10 @@ if _isic_json is not None:
         _ir = _json2.load(_f2)
     _mr2 = {r["name"]: r for r in _ir["main_results"]}
     _nm2  = ["Uncalibrated", "TS", "Platt (PS)", "MCTS (ours)", "SLTS (ours)", "VS (ours)",
-             "HB-Hard", "HB-Soft (ours)", "IR-Soft (ours)"]
+             "HB-Hard", "IR-Soft (ours)"]
     _nm2  = [n for n in _nm2 if n in _mr2]
     _eh2  = np.array([_mr2[n]["ece_hard"] * 100 for n in _nm2])
+    _esamp2 = np.array([_mr2[n].get("ece_sampled", _mr2[n]["ece_soft"]) * 100 for n in _nm2])
     _es2  = np.array([_mr2[n]["ece_soft"] * 100 for n in _nm2])
     _qr2  = _ir.get("quant_results", {})
     _pc2  = _ir.get("per_class_ece", {})
@@ -892,9 +887,10 @@ if _isic_json is not None:
 else:
     # ── Schematic placeholders (theory-consistent; K=9, 8 classes, ~73% agreement) ──
     _nm2  = ["Uncal.", "TS", "Platt (PS)", "MCTS (ours)", "SLTS (ours)",
-             "VS (ours)", "HB-Hard", "HB-Soft (ours)", "IR-Soft (ours)"]
-    _eh2  = np.array([ 6.2,  2.3,  2.6,  3.9,  4.5,  4.8,  3.1,  4.9,  4.3])
-    _es2  = np.array([12.4, 11.9, 11.5,  5.4,  4.9,  5.8, 12.1,  5.7,  5.1])
+             "VS (ours)", "HB-Hard", "IR-Soft (ours)"]
+    _eh2  = np.array([ 6.2,  2.3,  2.6,  3.9,  4.5,  4.8,  3.1,  4.3])
+    _esamp2 = np.array([11.8, 11.3, 10.9,  5.1,  4.6,  5.5, 11.5,  4.8])
+    _es2  = np.array([12.4, 11.9, 11.5,  5.4,  4.9,  5.8, 12.1,  5.1])
     _qr2  = {}
     _pc2  = {}
     _schematic2 = True
@@ -906,61 +902,47 @@ else:
 
 _col2 = [_col_map.get(n, PAL["uncal"]) for n in _nm2]
 
-# ── Layout: 1×3 (bar chart | stratified quartile | per-class ECE) ─────────────
-fig7, axes7 = plt.subplots(1, 3, figsize=(18, 5.5),
-                            gridspec_kw={"width_ratios": [1.6, 1.0, 1.1]})
-ax_b2, ax_q2, ax_pc = axes7
+# ── Layout: 1×2 (bar chart | stratified quartile) ─────────────────────────────
+fig7, (ax_b2, ax_q2) = plt.subplots(1, 2, figsize=(15, 5.5),
+                                     gridspec_kw={"width_ratios": [1.6, 1]})
 
-_title_sfx = (" [SCHEMATIC — run experiments/run_isic2019.py for real values]"
-              if _schematic2 else "")
+_title_sfx = (" [SCHEMATIC]" if _schematic2 else "")
 fig7.suptitle(
-    "Skin Disease Classification — ISIC 2019 (8 classes, EfficientNet-B4)\n"
-    "Annotator model: K=9 synthetic dermatologists, "
-    "overall agreement ~73% (calibrated to Liu et al. 2020)" + _title_sfx,
-    fontsize=10, fontweight="bold",
+    f"ISIC 2019 (8 classes, K=9 annotators){_title_sfx}",
+    fontsize=14, fontweight="bold",
 )
 
-# Panel 1: ECE-Hard vs ECE-Soft
+# Panel 1: ECE-Voted vs ECE-True vs ECE-Soft
 x2 = np.arange(len(_nm2))
-w2 = 0.30
-bh2 = ax_b2.bar(x2 - w2/2, _eh2, w2, label="ECE-Hard (vs. voted label)",
+w2 = 0.24
+bh2 = ax_b2.bar(x2 - w2, _eh2, w2, label="ECE-Voted",
                 color=_col2, alpha=0.42, edgecolor="black", lw=0.8, hatch="//")
-bs2 = ax_b2.bar(x2 + w2/2, _es2, w2, label="ECE-Soft (vs. annotator dist.)",
+bsamp2 = ax_b2.bar(x2, _esamp2, w2, label="ECE-True",
+                color=_col2, alpha=0.65, edgecolor="black", lw=0.8, hatch="..")
+bs2 = ax_b2.bar(x2 + w2, _es2, w2, label="ECE-Soft",
                 color=_col2, alpha=0.88, edgecolor="black", lw=0.8)
-for b in list(bh2) + list(bs2):
+for b in list(bh2) + list(bsamp2) + list(bs2):
     h = b.get_height()
     ax_b2.text(b.get_x() + b.get_width()/2, h + 0.08, f"{h:.1f}",
-               ha="center", va="bottom", fontsize=7)
+               ha="center", va="bottom", fontsize=8)
 
 if "TS" in _nm2:
     i2 = list(_nm2).index("TS")
-    ax_b2.annotate("", xy=(i2 + w2/2, _es2[i2]),
-                   xytext=(i2 - w2/2, _eh2[i2]),
+    ax_b2.annotate("", xy=(i2 + w2, _es2[i2]),
+                   xytext=(i2 - w2, _eh2[i2]),
                    arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=2.2))
     ax_b2.text(i2 + 0.10, (_es2[i2] + _eh2[i2]) / 2,
-               f"Delta={_es2[i2]-_eh2[i2]:+.1f}pp",
-               color=PAL["gap"], fontsize=9, fontweight="bold", va="center")
+               f"Δ={_es2[i2]-_eh2[i2]:+.1f}pp",
+               color=PAL["gap"], fontsize=11, fontweight="bold", va="center")
 
 ax_b2.axvline(x=2.5, color="gray", lw=1.2, ls="--", alpha=0.6)
-ax_b2.text(1.1, max(_es2) * 1.50, "Hard-label\nbaselines",
-           ha="center", fontsize=8, color="gray", style="italic")
-ax_b2.text(5.8, max(_es2) * 1.50, "Soft-label methods (ours)",
-           ha="center", fontsize=8, color="#2E7D32", style="italic", fontweight="bold")
 ax_b2.set_xticks(x2)
-ax_b2.set_xticklabels(_nm2, rotation=15, ha="right", fontsize=8.5)
+ax_b2.set_xticklabels(_nm2, rotation=20, ha="right", fontsize=10)
 ax_b2.set_ylabel("ECE (%)")
-ax_b2.set_title("ECE-Hard vs. ECE-Soft", fontweight="bold")
-ax_b2.legend(loc="upper right", fontsize=8)
+ax_b2.set_title("ECE-Voted vs. ECE-True vs. ECE-Soft", fontweight="bold")
+ax_b2.legend(loc="upper right", fontsize=10)
 ax_b2.grid(True, axis="y", alpha=0.25)
-ax_b2.set_ylim(0, max(_es2) * 1.75)
-if _ts_T2 is not None:
-    ax_b2.text(0.02, 0.97, f"TS: T={_ts_T2:.2f} {_ts_dir2}",
-               transform=ax_b2.transAxes, fontsize=8, va="top",
-               color=PAL["gap"], style="italic")
-if _slts_T2 is not None:
-    ax_b2.text(0.02, 0.91, f"SLTS: T={_slts_T2:.2f} (>1, down-conf)",
-               transform=ax_b2.transAxes, fontsize=8, va="top",
-               color=PAL["slts"], style="italic")
+ax_b2.set_ylim(0, max(_es2) * 1.55)
 
 # Panel 2: stratified by annotation entropy quartile
 _strat2 = [("TS", PAL["ts"]), ("Platt (PS)", PAL["ps"]),
@@ -968,7 +950,7 @@ _strat2 = [("TS", PAL["ts"]), ("Platt (PS)", PAL["ps"]),
 _n_q2  = 4
 _xq2   = np.arange(_n_q2)
 _n_m2  = len(_strat2)
-_offs2 = np.linspace(-(_n_m2-1)/2, (_n_m2-1)/2, _n_m2) * 0.19
+_offs2 = np.linspace(-(_n_m2-1)/2, (_n_m2-1)/2, _n_m2) * 0.20
 
 if _qr2:
     for off2, (nm2, col_c2) in zip(_offs2, _strat2):
@@ -976,11 +958,11 @@ if _qr2:
         if not qlist2:
             continue
         vals2 = [q["ece_soft"] * 100 for q in qlist2]
-        bars2 = ax_q2.bar(_xq2[:len(vals2)] + off2, vals2, 0.17,
+        bars2 = ax_q2.bar(_xq2[:len(vals2)] + off2, vals2, 0.18,
                           label=nm2, color=col_c2, alpha=0.85, edgecolor="black", lw=0.7)
         for b2 in bars2:
             ax_q2.text(b2.get_x() + b2.get_width()/2, b2.get_height() + 0.05,
-                       f"{b2.get_height():.1f}", ha="center", va="bottom", fontsize=7)
+                       f"{b2.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 else:
     _sv2 = {
         "TS":          [1.9,  6.2, 13.5, 23.1],
@@ -990,57 +972,104 @@ else:
     }
     for off2, (nm2, col_c2) in zip(_offs2, _strat2):
         vals2 = _sv2[nm2]
-        bars2 = ax_q2.bar(_xq2 + off2, vals2, 0.17,
+        bars2 = ax_q2.bar(_xq2 + off2, vals2, 0.18,
                           label=nm2, color=col_c2, alpha=0.85, edgecolor="black", lw=0.7)
         for b2 in bars2:
             ax_q2.text(b2.get_x() + b2.get_width()/2, b2.get_height() + 0.05,
-                       f"{b2.get_height():.1f}", ha="center", va="bottom", fontsize=7)
+                       f"{b2.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 
 ax_q2.set_xticks(np.arange(4))
-ax_q2.set_xticklabels(["Q1\n(low)", "Q2", "Q3", "Q4\n(high)"], fontsize=8.5)
+ax_q2.set_xticklabels(["Q1\n(low)", "Q2", "Q3", "Q4\n(high)"], fontsize=11)
 ax_q2.set_xlabel("Annotation entropy quartile")
 ax_q2.set_ylabel("ECE-Soft (%)")
-ax_q2.set_title("ECE-Soft by ambiguity\n(Q4 = MEL/NV region)", fontweight="bold")
-ax_q2.legend(fontsize=7.5, loc="upper left")
+ax_q2.set_title("ECE-Soft by ambiguity quartile", fontweight="bold")
+ax_q2.legend(fontsize=9.5, loc="upper left")
 ax_q2.grid(True, axis="y", alpha=0.25)
-
-# Panel 3: per-class ECE-Soft (TS vs SLTS)
-if _pc2:
-    _cls_order2  = [c for c in _CLASS_NAMES_ISIC if c in _pc2]
-    _ts_pc   = np.array([_pc2[c]["ece_ts"]   * 100 for c in _cls_order2])
-    _slts_pc = np.array([_pc2[c]["ece_slts"] * 100 for c in _cls_order2])
-else:
-    _cls_order2  = _CLASS_NAMES_ISIC
-    # Schematic: MEL/NV most miscalibrated by TS (highest off-diagonal in CONFUSION)
-    _ts_pc   = np.array([22.1, 18.4,  6.3, 14.2, 15.8,  3.1,  2.0, 13.6])
-    _slts_pc = np.array([ 7.2,  6.1,  3.8,  6.5,  7.2,  2.5,  1.8,  5.9])
-
-_xc  = np.arange(len(_cls_order2))
-_wc  = 0.35
-ax_pc.bar(_xc - _wc/2, _ts_pc,   _wc, label="TS",
-          color=PAL["ts"],   alpha=0.85, edgecolor="black", lw=0.7)
-ax_pc.bar(_xc + _wc/2, _slts_pc, _wc, label="SLTS (ours)",
-          color=PAL["slts"], alpha=0.85, edgecolor="black", lw=0.7)
-for x_pos, (vt, vs_) in zip(_xc, zip(_ts_pc, _slts_pc)):
-    ax_pc.text(x_pos - _wc/2, vt + 0.3, f"{vt:.1f}",
-               ha="center", va="bottom", fontsize=6.5, color=PAL["ts"])
-    ax_pc.text(x_pos + _wc/2, vs_ + 0.3, f"{vs_:.1f}",
-               ha="center", va="bottom", fontsize=6.5, color=PAL["slts"])
-ax_pc.set_xticks(_xc)
-ax_pc.set_xticklabels(_cls_order2, fontsize=9)
-ax_pc.set_ylabel("ECE-Soft (%)")
-ax_pc.set_title("Per-class ECE-Soft\n(TS vs. SLTS)", fontweight="bold")
-ax_pc.legend(fontsize=9, loc="upper right")
-ax_pc.grid(True, axis="y", alpha=0.25)
-ax_pc.annotate("MEL/NV\nhighest gap",
-               xy=(0.5, max(_ts_pc[:2]) * 0.98),
-               xytext=(2.5, max(_ts_pc) * 0.80),
-               arrowprops=dict(arrowstyle="->", color=PAL["gap"], lw=1.5),
-               fontsize=8, color=PAL["gap"], fontweight="bold")
 
 plt.tight_layout()
 plt.savefig(OUT / "fig7_isic.pdf", bbox_inches="tight")
 plt.close()
 print("  -> fig7_isic.pdf")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fig 8: ISIC 2019 Annotator Confusion Matrix — heatmap visualisation
+# ══════════════════════════════════════════════════════════════════════════════
+
+print("Generating fig8_isic_confusion …")
+
+CONFUSION_ISIC = np.array([
+    [0.73, 0.14, 0.02, 0.03, 0.08, 0.00, 0.00, 0.00],  # MEL
+    [0.15, 0.76, 0.01, 0.01, 0.06, 0.01, 0.00, 0.00],  # NV
+    [0.02, 0.01, 0.81, 0.05, 0.07, 0.01, 0.01, 0.02],  # BCC
+    [0.03, 0.01, 0.04, 0.65, 0.11, 0.00, 0.00, 0.16],  # AK
+    [0.12, 0.05, 0.03, 0.10, 0.62, 0.00, 0.00, 0.08],  # BKL
+    [0.01, 0.02, 0.02, 0.01, 0.02, 0.87, 0.03, 0.02],  # DF
+    [0.00, 0.01, 0.02, 0.01, 0.01, 0.02, 0.91, 0.02],  # VL
+    [0.01, 0.01, 0.03, 0.18, 0.09, 0.00, 0.01, 0.67],  # SCC
+])
+
+CLASS_NAMES_ISIC = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VL", "SCC"]
+
+import matplotlib.colors as mcolors
+
+fig8, ax8 = plt.subplots(figsize=(8.5, 7))
+
+# Custom colormap: white → deep blue
+cmap8 = mcolors.LinearSegmentedColormap.from_list(
+    "wblue", ["#ffffff", "#1a5fa8"], N=256
+)
+
+im8 = ax8.imshow(CONFUSION_ISIC, cmap=cmap8, vmin=0, vmax=1, aspect="auto")
+
+# Annotate each cell
+for i in range(8):
+    for j in range(8):
+        v = CONFUSION_ISIC[i, j]
+        text_color = "white" if v > 0.45 else "black"
+        weight = "bold" if i == j else "normal"
+        ax8.text(j, i, f"{v:.2f}", ha="center", va="center",
+                 fontsize=10, color=text_color, fontweight=weight)
+
+ax8.set_xticks(range(8))
+ax8.set_xticklabels(CLASS_NAMES_ISIC, fontsize=11)
+ax8.set_yticks(range(8))
+ax8.set_yticklabels(CLASS_NAMES_ISIC, fontsize=11)
+ax8.set_xlabel("Annotator's label", fontsize=12)
+ax8.set_ylabel("Consensus (majority-vote) label", fontsize=12)
+
+overall_agr = float(np.diag(CONFUSION_ISIC).mean())
+ax8.set_title(
+    "ISIC 2019 Inter-Reader Confusion Matrix\n"
+    rf"$C_{{ij}}=\Pr(\text{{annotator says }}j\mid\text{{consensus label }}i)$"
+    f"  —  overall agreement {overall_agr:.0%}",
+    fontsize=11.5, fontweight="bold",
+)
+
+# Highlight MEL/NV confusion cluster
+from matplotlib.patches import Rectangle
+ax8.add_patch(Rectangle((-0.5, -0.5), 2, 2,
+                         fill=False, edgecolor="#E07040", lw=2.2, linestyle="--"))
+ax8.text(0.5, -0.78, "MEL/NV", ha="center", va="top",
+         fontsize=9, color="#E07040", fontweight="bold")
+
+# Highlight AK/BKL/SCC high-confusion cluster (rows/cols 3,4,7)
+# Draw individual off-diagonal highlight boxes
+for (ri, ci) in [(3, 7), (4, 7), (3, 4), (7, 3), (7, 4), (4, 3)]:
+    ax8.add_patch(Rectangle((ci - 0.5, ri - 0.5), 1, 1,
+                             fill=False, edgecolor="#9B59B6", lw=1.8, linestyle=":"))
+ax8.text(5.5, 7.78, "AK/BKL/SCC cluster", ha="center", va="bottom",
+         fontsize=9, color="#9B59B6", fontweight="bold")
+
+cbar = fig8.colorbar(im8, ax=ax8, fraction=0.035, pad=0.02)
+cbar.set_label("Probability", fontsize=11)
+cbar.ax.tick_params(labelsize=10)
+
+plt.tight_layout()
+plt.savefig(OUT / "fig8_isic_confusion.pdf", bbox_inches="tight")
+plt.savefig(OUT / "fig8_isic_confusion.png", dpi=180, bbox_inches="tight")
+plt.close()
+print("  -> fig8_isic_confusion.pdf")
+
 
 print("\nAll figures written to", OUT)

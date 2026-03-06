@@ -157,6 +157,69 @@ def compute_nll(
 # Composite helper
 # ──────────────────────────────────────────────────────────────────────────────
 
+def compute_ece_sampled(
+    probs: np.ndarray,
+    labels_soft: np.ndarray,
+    n_bins: int = 15,
+    n_samples: int = 100,
+    seed: int = 0,
+) -> float:
+    """
+    ECE against sampled hard labels: for each sample, draw a hard label from
+    its soft label distribution π, then compute ECE.  Repeat n_samples times
+    and return the average.
+
+    This metric captures what happens when each sample has a *single* annotator
+    whose label is drawn from the annotator distribution π(x).
+    """
+    rng = np.random.default_rng(seed)
+    N, K = labels_soft.shape
+    ece_sum = 0.0
+    for _ in range(n_samples):
+        sampled = np.array([rng.choice(K, p=labels_soft[i]) for i in range(N)])
+        ece_i, _ = compute_ece(probs, sampled, n_bins=n_bins)
+        ece_sum += ece_i
+    return ece_sum / n_samples
+
+
+def compute_brier_sampled(
+    probs: np.ndarray,
+    labels_soft: np.ndarray,
+) -> float:
+    """
+    Brier Score against "true" (sampled) labels:
+        E_{y~π} [||p - e_y||²] = Σ_k π_k · ||p - e_k||²
+
+    Closed-form: = ||p||² + 1 - 2·p·π  (per sample, then averaged).
+    This differs from brier_soft = ||p - π||².
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    labels_soft = np.asarray(labels_soft, dtype=np.float64)
+    # Per sample: Σ_k π_k (Σ_j (p_j - δ_{jk})^2)
+    #           = Σ_k π_k (||p||^2 - 2p_k + 1)
+    #           = ||p||^2 + 1 - 2 Σ_k π_k p_k
+    p_sq = np.sum(probs ** 2, axis=1)          # ||p||^2
+    dot  = np.sum(probs * labels_soft, axis=1)  # p · π
+    return float(np.mean(p_sq + 1.0 - 2.0 * dot))
+
+
+def compute_nll_sampled(
+    probs: np.ndarray,
+    labels_soft: np.ndarray,
+    eps: float = 1e-12,
+) -> float:
+    """
+    NLL against "true" (sampled) labels:
+        E_{y~π} [-log p_y] = -Σ_k π_k log p_k
+
+    This is mathematically identical to nll_soft (cross-entropy with soft targets).
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    labels_soft = np.asarray(labels_soft, dtype=np.float64)
+    log_p = np.log(np.clip(probs, eps, 1.0))
+    return float(-np.mean((labels_soft * log_p).sum(axis=1)))
+
+
 def compute_all_metrics(
     probs: np.ndarray,
     labels_hard: np.ndarray,
@@ -165,21 +228,25 @@ def compute_all_metrics(
     name: str = "",
 ) -> dict:
     """
-    Compute all metrics (hard + soft) for a single calibration output.
+    Compute all metrics (hard + soft + sampled) for a single calibration output.
 
     Returns a flat dict with keys:
-      ece_hard, ece_soft, brier_hard, brier_soft, nll_hard, nll_soft
+      ece_hard, ece_soft, ece_sampled, brier_hard, brier_soft, nll_hard, nll_soft
     """
     ece_h, _ = compute_ece(probs, labels_hard, n_bins=n_bins)
     ece_s, _ = compute_ece(probs, labels_soft, n_bins=n_bins)
+    ece_samp = compute_ece_sampled(probs, labels_soft, n_bins=n_bins)
     return {
         "name":        name,
         "ece_hard":    ece_h,
         "ece_soft":    ece_s,
+        "ece_sampled": ece_samp,
         "brier_hard":  compute_brier(probs, labels_hard),
         "brier_soft":  compute_brier(probs, labels_soft),
+        "brier_sampled": compute_brier_sampled(probs, labels_soft),
         "nll_hard":    compute_nll(probs, labels_hard),
         "nll_soft":    compute_nll(probs, labels_soft),
+        "nll_sampled": compute_nll_sampled(probs, labels_soft),
     }
 
 
@@ -256,18 +323,26 @@ def ambiguity_split_ece(
 # ──────────────────────────────────────────────────────────────────────────────
 
 def print_results_table(results: list[dict]) -> None:
-    header = f"{'Method':<22} | {'ECE-Hard':>9} | {'ECE-Soft':>9} | {'Brier-Hard':>10} | {'Brier-Soft':>10} | {'NLL-Hard':>9} | {'NLL-Soft':>9}"
+    header = (f"{'Method':<22} | {'ECE-Hard':>9} | {'ECE-True':>9} | {'ECE-Soft':>9} | "
+              f"{'Br-Hard':>8} | {'Br-True':>8} | {'Br-Soft':>8} | "
+              f"{'NLL-Hard':>9} | {'NLL-True':>9} | {'NLL-Soft':>9}")
     print("=" * len(header))
     print(header)
     print("-" * len(header))
     for r in results:
+        ece_samp = r.get('ece_sampled', float('nan'))
+        br_samp  = r.get('brier_sampled', float('nan'))
+        nll_samp = r.get('nll_sampled', float('nan'))
         print(
             f"{r['name']:<22} | "
             f"{r['ece_hard']*100:>8.2f}% | "
+            f"{ece_samp*100:>8.2f}% | "
             f"{r['ece_soft']*100:>8.2f}% | "
-            f"{r['brier_hard']:>10.4f} | "
-            f"{r['brier_soft']:>10.4f} | "
+            f"{r['brier_hard']:>8.4f} | "
+            f"{br_samp:>8.4f} | "
+            f"{r['brier_soft']:>8.4f} | "
             f"{r['nll_hard']:>9.4f} | "
+            f"{nll_samp:>9.4f} | "
             f"{r['nll_soft']:>9.4f}"
         )
     print("=" * len(header))
