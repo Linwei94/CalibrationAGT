@@ -260,9 +260,8 @@ The full $K\!\times\!K$ affine $Wz+b$ fitted by minimizing $\KL(\pihat(x)\|\oper
 % ─────────────────────────────────────────────────────────────────────────────
 
 The methods above require annotator distributions $\pihat(x_i)$ at calibration time.
-When only voted labels $y^*_i$ are available, we propose two annotation-free methods that use the model's own predictions as a proxy for annotator disagreement.
+When only voted labels $y^*_i$ are available, we propose \textbf{Label-Smooth Temperature Scaling (LS-TS)}, which constructs a pseudo-soft target from the model's own predictions without any additional annotations.
 
-\paragraph{Label-Smooth Temperature Scaling (LS-TS).}
 Let $\bar\varepsilon = \frac{1}{n}\sum_{i=1}^n \bigl(1 - \hat p_{y^*_i}(x_i)\bigr)$ be the mean complement of the model's voted-class confidence on the calibration set.
 Define the pseudo-soft target
 \begin{equation}
@@ -271,37 +270,10 @@ Define the pseudo-soft target
   \label{eq:lsts}
 \end{equation}
 and minimize $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these targets.
-The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$.
+The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly across all $K$ classes.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
-\paragraph{Pseudo-Soft Label Temperature Scaling (PSLTS).}
-LS-TS smooths all examples equally.  PSLTS instead uses \emph{per-instance} smoothing: the smoothing weight for example $i$ is $\varepsilon_i = 1 - \hat p_{y^*_i}(x_i)$, the model's own uncertainty about the voted class.  The pseudo-soft target is
-\begin{equation}
-  \tpihat^{\mathrm{PSLTS}}_i
-  = \hat p_{y^*_i}(x_i)\cdot e_{y^*_i}
-  + \frac{1 - \hat p_{y^*_i}(x_i)}{K}\,\mathbf{1}.
-  \label{eq:pslts}
-\end{equation}
-Intuitively, when the model is confident ($\hat p_{y^*} \approx 1$), the pseudo-label is nearly one-hot (the example is likely unambiguous); when the model is uncertain ($\hat p_{y^*} \approx 1/K$), the pseudo-label is nearly uniform (the example is likely ambiguous).
-
-\begin{proposition}[T*$_{\mathrm{PSLTS}} \geq$ T*$_{\mathrm{TS}}$]
-\label{prop:pslts-T}
-Let $z_i \in \mathbb{R}^K$ be non-degenerate logits with $\hat p_{y^*_i}(x_i) < 1$ for all $i$.
-Then the optimal temperature under Eq.~\ref{eq:pslts} satisfies $T^*_{\mathrm{PSLTS}} \geq T^*_{\mathrm{TS}}$.
-\end{proposition}
-\begin{proof}[Proof sketch]
-Setting the KL gradient to zero gives the stationarity condition
-$\frac{1}{n}\!\sum_i \mathbb{E}_{\tpihat_i}[z_i] = \frac{1}{n}\!\sum_i \mathbb{E}_{\mathrm{softmax}(z_i/T^*)}[z_i]$.
-For TS the LHS equals $\frac{1}{n}\!\sum_i z_i[y^*_i]$.
-For PSLTS: $\mathbb{E}_{\tpihat^{\mathrm{PSLTS}}_i}[z_i]
-= \hat p_{y^*_i} z_i[y^*_i] + (1{-}\hat p_{y^*_i})\bar z_i
-= z_i[y^*_i] - (1{-}\hat p_{y^*_i})(z_i[y^*_i] - \bar z_i) \leq z_i[y^*_i]$,
-where $\bar z_i = K^{-1}\!\sum_k z_i[k]$ and the inequality holds when $z_i[y^*_i] \geq \bar z_i$ (the voted-class logit is above average).
-Since $\mathbb{E}_{\mathrm{softmax}(z/T)}[z]$ is strictly decreasing in $T$, a smaller LHS implies $T^*_{\mathrm{PSLTS}} \geq T^*_{\mathrm{TS}}$. Full proof in Appendix~\ref{app:proof-pslts}.
-\end{proof}
-\noindent The PSLTS target adapts to each example, while LS-TS applies a global correction; both act as annotation-free approximations to SLTS.
-
-\paragraph{Theoretical interpretation of LS-TS.}
-The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach.
+\paragraph{Theoretical interpretation.}
+The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
@@ -365,7 +337,6 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     HB-Hard    &  7.44 & .516 &  6.55 & .388 &  8.37 & .562 & 10.75 & .574 & 20.34 & .590 & 17.71 & .662 & 22.02 & .694 & 23.82 & .700 \\
     \midrule
     LS-TS      &  1.57 & .109 &  2.37 & .103 &  4.16 & .522 &  2.65 & .529 &  9.34 & .528 & 15.49 & .619 &  5.05 & .630 &  7.36 & .615 \\
-    PSLTS      &  2.63 & .109 &  3.64 & .104 &  8.90 & .531 & 13.91 & .558 &  7.55 & .524 &  9.54 & .599 & 14.38 & .652 & 18.06 & .648 \\
     \midrule
     MCTS       &  1.51 & .110 &  0.85 & .102 &  3.23 & .520 &  3.49 & .529 &  9.69 & .528 &  7.06 & .586 &  4.69 & .622 &  3.57 & .610 \\
     SLTS       &  1.51 & .110 &  0.85 & .102 &  3.22 & .520 &  3.45 & .529 &  9.71 & .528 &  6.96 & .586 &  4.61 & .622 &  3.58 & .610 \\
@@ -385,11 +356,11 @@ Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier s
 Soft-label methods achieve higher $\ECEvoted$ than TS---correct behaviour reflecting a soft target; see Section~\ref{sec:discussion}.  The $\ECEvoted$--$\ECEtrue$ scatter is shown in Appendix~\ref{app:summary-scatter}.
 
 \paragraph{Annotation-free results.}
-Both LS-TS and PSLTS (middle block) use no annotator data yet achieve substantial ECE reductions.
-LS-TS reduces ECE from $4.29\%$ to $1.57\%$ on CIFAR-10H ResNet-50 ($-63\%$) and is especially strong on ChaosNLI DeBERTa ($11.63\%\to2.65\%$, even outperforming oracle SLTS at $3.45\%$).
-PSLTS uses per-instance smoothing (Eq.~\ref{eq:pslts}) and is most effective where ambiguity is widespread: on ISIC~2019 ENet-B4 it reduces ECE from $18.72\%$ to $7.55\%$ ($-60\%$, outperforming LS-TS at $9.34\%$); on DermaMNIST it reduces ECE by $7.9\%$ (ResNet-18) and $6.6\%$ (ViT-S/16) over TS.
-On ChaosNLI DeBERTa-v3, PSLTS degrades ($11.63\%\to13.91\%$) because DeBERTa's voted-class confidence does not correlate with annotation agreement here---the condition $z[y^*_i] \geq \bar z_i$ in Proposition~\ref{prop:pslts-T} is violated.  LS-TS, using a global weight, is robust in this case.
-In summary, LS-TS is a safe default; PSLTS is preferable when the model's per-instance confidence tracks annotation disagreement (7 of 8 settings).
+LS-TS (middle block) uses no annotator data yet achieves substantial ECE reductions across all benchmarks.
+On CIFAR-10H it reduces ECE from $4.29\%$ to $1.57\%$ (ResNet-50, $-63\%$) and from $4.48\%$ to $2.37\%$ (ViT-B/16, $-47\%$), approaching the oracle SLTS ($1.51\%$/$0.85\%$).
+On ChaosNLI, LS-TS reduces ECE from $10.55\%$ to $4.16\%$ (RoBERTa-L) and from $11.63\%$ to $2.65\%$ (DeBERTa-v3)---the latter even outperforming oracle SLTS ($3.45\%$).
+On ISIC~2019, ECE falls from $18.72\%$ to $9.34\%$ (ENet-B4) and from $17.04\%$ to $15.49\%$ (ViT-S/16).
+The global smoothing weight $\bar\varepsilon$ derived from model confidence is a robust proxy for annotator disagreement across diverse architectures and domains.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$).  For highly ambiguous inputs (Q4), TS degrades to $\approx18\%$ while SLTS maintains $\approx6\%$---a $3\times$ gap confirming Proposition~\ref{prop:entropy-gap}.
@@ -643,38 +614,6 @@ The aggregate calibration gap $\Delta=\ECEtrue-\ECEvoted$ equals $\sum_b\frac{|B
 
 \begin{remark}[Independence assumption]
 Assumption~(i)---that $\phat_{\hat{c}}(x)$ is approximately independent of $H(x)$---may be violated in practice if harder examples (high $H(x)$) also have lower model confidence.  When the two are positively correlated, the per-example gap contribution $\delta(x)$ grows even faster with $H(x)$ than the proof suggests, so Proposition~\ref{prop:entropy-gap} remains valid and the monotonicity is if anything \emph{conservative}.  The empirical Q1$\to$Q4 ECE breakdown in Figure~\ref{fig:stratified} provides direct evidence that the aggregate pattern holds regardless of the exact strength of this assumption.
-\end{remark}
-
-\section{Proof of Proposition~\ref{prop:pslts-T}}
-\label{app:proof-pslts}
-
-Setting the derivative of $\mathcal{L}_{\mathrm{SLTS}}(T;\tpihat^{\mathrm{PSLTS}})$ with respect to $T$ to zero gives the stationarity condition
-\begin{equation}
-  \frac{1}{n}\sum_{i=1}^n \mathbb{E}_{\tpihat^{\mathrm{PSLTS}}_i}[z_i]
-  \;=\; \frac{1}{n}\sum_{i=1}^n \mathbb{E}_{\operatorname{softmax}(z_i/T^*)}[z_i],
-  \label{eq:stationarity-pslts}
-\end{equation}
-where $\mathbb{E}_\pi[z] = \sum_k \pi_k z_k$ denotes the expected logit under distribution $\pi$.
-
-For standard TS the LHS of~\eqref{eq:stationarity-pslts} is $n^{-1}\!\sum_i z_i[y^*_i]$.
-For PSLTS, using Eq.~\ref{eq:pslts}:
-\begin{align}
-  \mathbb{E}_{\tpihat^{\mathrm{PSLTS}}_i}[z_i]
-  &= \hat p_{y^*_i} z_i[y^*_i] + \frac{1-\hat p_{y^*_i}}{K}\sum_k z_i[k] \notag\\
-  &= z_i[y^*_i] - (1-\hat p_{y^*_i})\!\bigl(z_i[y^*_i] - \bar z_i\bigr),
-  \label{eq:pslts-lhs}
-\end{align}
-where $\bar z_i = K^{-1}\!\sum_k z_i[k]$.
-If the voted-class logit is above average, i.e.\ $z_i[y^*_i] \geq \bar z_i$ (which holds whenever the model assigns a higher logit to the voted class than the mean), then the second term in~\eqref{eq:pslts-lhs} is non-negative and
-\[
-  \mathbb{E}_{\tpihat^{\mathrm{PSLTS}}_i}[z_i] \;\leq\; z_i[y^*_i]
-  \;=\; \mathbb{E}_{e_{y^*_i}}[z_i]
-  \quad \text{(LHS for TS)}.
-\]
-Since the RHS of~\eqref{eq:stationarity-pslts}, $\frac{1}{n}\!\sum_i \mathbb{E}_{\operatorname{softmax}(z_i/T)}[z_i]$, is strictly decreasing in $T$ (softmax concentrates on high-logit classes as $T\to 0$), a smaller LHS implies a larger solution $T^*$.  Hence $T^*_{\mathrm{PSLTS}} \geq T^*_{\mathrm{TS}}$.  $\square$
-
-\begin{remark}
-The condition $z_i[y^*_i] \geq \bar z_i$ holds for all examples on which the model assigns above-average logit to the voted class.  This is satisfied whenever the model correctly ranks the voted class above average, which is the typical case for well-trained classifiers.  When it fails (e.g., DeBERTa-v3 on ChaosNLI), $T^*_{\mathrm{PSLTS}}$ may fall below $T^*_{\mathrm{TS}}$, and PSLTS can degrade---as observed empirically.
 \end{remark}
 
 \section{Effect of Number of Annotations}
