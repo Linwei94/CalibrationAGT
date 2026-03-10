@@ -374,7 +374,7 @@ Table~\ref{tab:main} reveals a consistent pattern across both backbones.
 Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16); crucially, Dirichlet-Hard---despite its $K\!\times\!K$ parameter matrix---does not improve over TS ($4.46\%$ and $4.70\%$ respectively), confirming that the issue lies in the voted-label target, not the method's expressiveness.
 Soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE ($0.72\%$) on ResNet-50.
 Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score and NLL across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
-Figure~\ref{fig:summary} plots $\ECEvoted$ vs.\ $\ECEtrue$ for all methods, illustrating the gap between the two metrics.
+Figure~\ref{fig:summary} plots $\ECEvoted$ vs.\ $\ECEtrue$ for all methods, illustrating the gap between the two metrics.  Reliability diagrams for these methods are provided in Appendix~\ref{app:reliability}.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$), since true-label calibration reduces to voted-label calibration when $\pi(\cdot\mid x)$ is one-hot.  For highly ambiguous inputs (Q4), TS degrades to ECE $\approx 18\%$ while SLTS maintains $\approx 6\%$—a $3\times$ gap, directly confirming Proposition~\ref{prop:entropy-gap}.
@@ -572,7 +572,7 @@ The ISIC~2019 and DermaMNIST experiments use synthetic annotations derived from 
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, and IR-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across four benchmarks and seven architectures spanning vision and language.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, IR-Soft, SoftPlatt, and Dirichlet-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across four benchmarks and seven architectures spanning vision and language.  Dirichlet-Soft achieves the best Brier score and NLL across all benchmarks, confirming that expressive soft-label calibrators provide additional gains when more parameters are paired with the correct target.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default.
 
 \paragraph{Acknowledgements.}
 We thank the anonymous reviewers for their constructive feedback.
