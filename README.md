@@ -20,19 +20,18 @@ We formalise the gap, prove it is a structural consequence of the voted-label ta
 
 *All hard-label baselines reduce ECE-voted but widen the true-label gap. SLTS uses the soft annotator distribution as target and closes it.*
 
-### Main experiments (ECE-true, relative reduction vs TS)
+### Main experiments — ECE-true (%) across all benchmarks
 
-| Dataset | Architecture | TS | SLTS (ours) | Dirichlet-Soft (ours) | IR-Soft (ours) |
-|---|---|---|---|---|---|
-| CIFAR-10H | ResNet-50 | 4.29% | 1.51% (−65%) | 1.25% | **0.72%** |
-| CIFAR-10H | ViT-B/16 | 4.48% | 0.85% (−81%) | **0.72%** | 0.91% |
-| ChaosNLI | RoBERTa-L | 10.55% | 3.22% (−69%) | **2.57%** | 2.65% |
-| ChaosNLI | DeBERTa-v3 | 11.63% | 3.45% (−70%) | 3.19% | **2.15%** |
-| ISIC 2019 | EfficientNet-B4 | 18.54% | 9.71% (−48%) | 7.50% | **1.75%** |
-| ISIC 2019 | ViT-S/16 | 16.59% | 6.96% (−58%) | 6.85% | **1.73%** |
+| Method | C10H R50 | C10H ViT | NLI Rob | NLI Deb | ISIC ENet | ISIC ViT | Derm R18 | Derm ViT |
+|---|---|---|---|---|---|---|---|---|
+| Uncalibrated | 4.97 | 4.99 | 27.79 | 35.97 | 25.76 | 23.31 | 34.35 | 37.12 |
+| TS | 4.29 | 4.48 | 10.55 | 11.63 | 18.54 | 16.59 | 23.05 | 24.36 |
+| Dir.-Hard | 4.46 | 4.70 | 11.55 | 12.69 | 20.36 | 17.76 | 24.58 | 24.84 |
+| SLTS (ours) | 1.51 | 0.85 | 3.22 | 3.45 | 9.71 | 6.96 | 4.61 | 3.58 |
+| Dir.-Soft (ours) | 1.25 | **0.72** | **2.57** | 3.19 | 7.50 | 6.85 | 3.55 | **3.32** |
+| IR-Soft (ours) | **0.72** | 0.91 | 2.65 | **2.15** | **1.75** | **1.73** | **2.15** | 3.79 |
 
-Dirichlet-Soft achieves the best Brier score and NLL across all benchmarks.
-DermaMNIST results (ResNet-18, ViT-S/16) are in Appendix J of the paper (SLTS: −80/−82%).
+*Dir.-Hard (most expressive hard-label method) fails to improve over TS → the bottleneck is the voted-label target, not capacity. Dirichlet-Soft achieves the best Brier score and NLL across all benchmarks.*
 
 ## Methods
 
@@ -56,13 +55,13 @@ experiments/
   run_cifar10h.py       # CIFAR-10H (ResNet-50, ViT-B/16)
   run_chaosnli.py       # ChaosNLI (RoBERTa-Large, DeBERTa-v3)
   run_isic2019.py       # ISIC 2019 (EfficientNet-B4, ViT-S/16)
-  run_dermamnist.py     # DermaMNIST (ResNet-18, ViT-S/16) — appendix
+  run_dermamnist.py     # DermaMNIST (ResNet-18, ViT-S/16)
 
 toy_example/
   run_toy_example.py    # Controlled 3-class motivating experiment
 
 paper/
-  main.tex              # NeurIPS 2026 paper (8-page main body)
+  main.tex              # NeurIPS 2026 paper (7-page main body + appendix)
   make_figures.py       # Reproduce all figures
   references.bib
   neurips_2025.sty
@@ -102,7 +101,7 @@ python experiments/run_chaosnli.py --arch roberta_large --device cuda
 python experiments/run_chaosnli.py --arch deberta_v3    --device cuda
 ```
 
-### 4. ISIC 2019 (Appendix B)
+### 4. ISIC 2019 (Section 7.3)
 
 Download from [ISIC Archive 2019](https://challenge.isic-archive.com/data/#2019) and place under `experiments/data/isic2019/`.
 
@@ -111,7 +110,7 @@ python experiments/run_isic2019.py --arch efficientnet_b4 --device cuda
 python experiments/run_isic2019.py --arch vit_s16         --device cuda
 ```
 
-### 5. DermaMNIST (Appendix J)
+### 5. DermaMNIST (Appendix)
 
 ```bash
 python experiments/run_dermamnist.py --arch resnet18 --device cuda
@@ -122,8 +121,10 @@ python experiments/run_dermamnist.py --arch vit_s16  --device cuda
 
 ```bash
 cd paper && python make_figures.py
-pdflatex -interaction=nonstopmode main.tex && bibtex main
-pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+pdflatex -interaction=nonstopmode main.tex
+bibtex main
+pdflatex -interaction=nonstopmode main.tex
+pdflatex -interaction=nonstopmode main.tex
 ```
 
 ## Reference
