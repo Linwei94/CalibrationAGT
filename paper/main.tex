@@ -171,7 +171,6 @@ Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a 
     \textbf{Motivating toy example: all voted-label calibration methods widen the calibration gap.}
     Every voted-label method reduces $\ECEvoted$ but \emph{increases} $\ECEtrue$, growing the gap $\Delta=\ECEtrue-\ECEvoted$ from $+6.6$ pp (uncalibrated) to $+7.3$--$+8.0$ pp.
     TS sets $T=0.92<1$ (wrong direction for ambiguous data).
-    SLTS (ours) inverts the gap to $\Delta=-8.5$ pp by targeting the annotator distribution directly.
     The failure is structural: it stems from the voted-label target, not method capacity.
   }
   \label{tab:toy}
@@ -184,8 +183,6 @@ Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a 
     TS           & 0.92 & \textbf{1.1} & 9.1   & +8.0 \\
     Platt (PS)   & ---  & 1.0          & 8.3   & +7.3 \\
     HB-Hard      & ---  & 1.6          & 8.2   & +6.6 \\
-    \midrule
-    SLTS (ours)  & 2.43 & 14.4         & \textbf{5.9}   & $-8.5$ \\
     \bottomrule
   \end{tabular}
 \end{table}
