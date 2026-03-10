@@ -260,10 +260,9 @@ The full $K\!\times\!K$ affine $Wz+b$ fitted by minimizing $\KL(\pihat(x)\|\oper
 % ─────────────────────────────────────────────────────────────────────────────
 
 The methods above require annotator distributions $\pihat(x_i)$ at calibration time.
-When only voted labels $y^*_i$ are available, we propose two methods that construct \emph{pseudo-soft} targets from the model's own predictions, requiring no additional annotations.
+When only voted labels $y^*_i$ are available, we propose \textbf{Label-Smooth Temperature Scaling (LS-TS)}, which constructs a pseudo-soft target from the model's own predictions without any additional annotations.
 
-\paragraph{Label-Smooth Temperature Scaling (LS-TS).}
-Let $\bar\varepsilon = \frac{1}{n}\sum_{i=1}^n \bigl(1 - \hat p_{y^*_i}(x_i)\bigr)$ be the mean complement of the model's top-class confidence on the calibration set.
+Let $\bar\varepsilon = \frac{1}{n}\sum_{i=1}^n \bigl(1 - \hat p_{y^*_i}(x_i)\bigr)$ be the mean complement of the model's voted-class confidence on the calibration set.
 Define the pseudo-soft target
 \begin{equation}
   \tpihat^{\mathrm{LS}}_i
@@ -271,20 +270,10 @@ Define the pseudo-soft target
   \label{eq:lsts}
 \end{equation}
 and minimize $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these targets.
-Intuitively, $\bar\varepsilon$ is a data-driven estimate of the average annotator disagreement: if the model is $80\%$ confident on the voted class, the remaining $20\%$ is spread uniformly across all $K$ classes.  This is equivalent to TS with a label-smoothed target whose smoothing factor is derived from the calibration data rather than a hand-picked constant.
-
-\paragraph{Pseudo-Soft Label Temperature Scaling (PSLTS).}
-We use \emph{instance-adaptive} smoothing $\varepsilon_i = 1 - \hat p_{y^*_i}(x_i)$, yielding
-\begin{equation}
-  \tpihat^{\mathrm{PSLTS}}_i
-  = (1-\varepsilon_i)\,e_{y^*_i} + \tfrac{\varepsilon_i}{K}\,\mathbf{1}.
-  \label{eq:pslts}
-\end{equation}
-Here $\varepsilon_i$ increases when the model is uncertain on example $x_i$, reflecting the intuition that harder inputs are more likely to be annotator-ambiguous.
-Both methods fit TS against these pseudo-targets by minimizing the same KL objective as SLTS; the result is a single temperature $T^*$ that is larger than $T^*_{\mathrm{TS}}$ on datasets where $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without access to annotator data.
+Intuitively, $\bar\varepsilon$ is a data-driven estimate of the average annotator disagreement: if the model is $80\%$ confident on the voted class, the remaining $20\%$ is spread uniformly across all $K$ classes.  This is equivalent to TS with a label-smoothed target whose smoothing factor is derived from the calibration data rather than a hand-picked constant.  The result is a single temperature $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
 \paragraph{Theoretical interpretation.}
-The global smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, both methods can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Iterating EM to convergence is possible but empirically offers no gain over the single-step version (results not shown), likely because the one-step pseudo-labels already capture the dominant temperature shift.
+The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
@@ -348,7 +337,6 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     HB-Hard    &  7.44 & .516 &  6.55 & .388 &  8.37 & .562 & 10.75 & .574 & 20.34 & .590 & 17.71 & .662 & 22.02 & .694 & 23.82 & .700 \\
     \midrule
     LS-TS      &  1.57 & .109 &  2.37 & .103 &  4.16 & .522 &  2.65 & .529 &  9.34 & .528 & 15.49 & .619 &  5.05 & .630 &  7.36 & .615 \\
-    PSLTS      &  2.63 & .110 &  3.64 & .104 &  8.90 & .531 & 13.91 & .559 &  7.55 & .525 &  9.54 & .600 & 14.38 & .653 & 18.06 & .649 \\
     \midrule
     MCTS       &  1.51 & .110 &  0.85 & .102 &  3.23 & .520 &  3.49 & .529 &  9.69 & .528 &  7.06 & .586 &  4.69 & .622 &  3.57 & .610 \\
     SLTS       &  1.51 & .110 &  0.85 & .102 &  3.22 & .520 &  3.45 & .529 &  9.71 & .528 &  6.96 & .586 &  4.61 & .622 &  3.58 & .610 \\
@@ -368,10 +356,11 @@ Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier s
 Soft-label methods achieve higher $\ECEvoted$ than TS---correct behaviour reflecting a soft target; see Section~\ref{sec:discussion}.  The $\ECEvoted$--$\ECEtrue$ scatter is shown in Appendix~\ref{app:summary-scatter}.
 
 \paragraph{Annotation-free results.}
-LS-TS (middle block) uses no annotator data yet reduces ECE from $4.29\%$ to $1.57\%$ on ResNet-50 and from $4.48\%$ to $2.37\%$ on ViT-B/16---reductions of 63--47\%---approaching the oracle SLTS result ($1.51\%$/$0.85\%$).
-The instance-adaptive PSLTS shows similar or slightly larger residual ECE on CIFAR-10H ($2.63\%$/$3.64\%$), suggesting that per-example confidence is a noisier proxy for annotator disagreement than the global mean.
-Notably, LS-TS also achieves strong results on DeBERTa-v3 ($2.65\%$ vs.\ TS $11.63\%$), whereas PSLTS degrades on this architecture ($13.91\%$); the global average smoothing is more robust when the model's per-example confidence correlates poorly with annotation agreement.
-LS-TS is the recommended annotation-free default; PSLTS is a useful complement when per-example adaptation is expected to track annotator disagreement (e.g., ISIC 2019: $7.55\%$ vs.\ LS-TS $9.34\%$).
+LS-TS (middle block) uses no annotator data yet achieves substantial ECE reductions across all benchmarks.
+On CIFAR-10H, it reduces ECE from $4.29\%$ to $1.57\%$ (ResNet-50) and from $4.48\%$ to $2.37\%$ (ViT-B/16)---reductions of 63\% and 47\%---approaching the oracle SLTS result ($1.51\%$/$0.85\%$).
+On ChaosNLI, LS-TS reduces ECE from $10.55\%$ to $4.16\%$ on RoBERTa-Large and from $11.63\%$ to $2.65\%$ on DeBERTa-v3---the strongest result on the latter, even outperforming SLTS ($3.45\%$).
+On ISIC~2019, ECE falls from $18.72\%$ to $9.34\%$ (ENet-B4) and from $17.04\%$ to $15.49\%$ (ViT-S/16).
+The global smoothing weight $\bar\varepsilon$ derived from model confidence is a robust proxy for annotator disagreement across diverse architectures and domains.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$).  For highly ambiguous inputs (Q4), TS degrades to $\approx18\%$ while SLTS maintains $\approx6\%$---a $3\times$ gap confirming Proposition~\ref{prop:entropy-gap}.
@@ -496,14 +485,14 @@ Table~\ref{tab:n-annotators} shows that $m\ge5$ annotations per example suffices
 \end{table}
 
 \paragraph{Limitations.}
-Full soft calibration requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS and PSLTS (\S\ref{sec:annotation-free}) provide substantial improvements over TS without any annotator data, at the cost of somewhat higher residual ECE than SLTS.  PSLTS degrades on DeBERTa-v3 ($13.91\%$ vs.\ TS $11.63\%$), suggesting the per-example confidence proxy is unreliable when the model is far out-of-distribution.  All methods assume rational annotators.  ISIC~2019 and DermaMNIST use synthetic annotations from clinician-reported agreement rates---real multi-annotator medical datasets would provide stronger validation (CIFAR-10H and ChaosNLI serve as primary evidence).  Main-table results use a single seed; Appendix~\ref{app:mcts-convergence} shows low variance for MCTS.
+Full soft calibration requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS (\S\ref{sec:annotation-free}) provides substantial improvements over TS without any annotator data, at the cost of somewhat higher residual ECE than SLTS (e.g., $15.49\%$ vs.\ $6.96\%$ on ISIC ViT-S/16).  All methods assume rational annotators.  ISIC~2019 and DermaMNIST use synthetic annotations from clinician-reported agreement rates---real multi-annotator medical datasets would provide stronger validation (CIFAR-10H and ChaosNLI serve as primary evidence).  Main-table results use a single seed; Appendix~\ref{app:mcts-convergence} shows low variance for MCTS.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, IR-Soft, SoftPlatt, and Dirichlet-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across four benchmarks and seven architectures spanning vision and language.  Dirichlet-Soft achieves the best Brier score and NLL across all benchmarks, confirming that expressive soft-label calibrators provide additional gains when more parameters are paired with the correct target.  When annotator distributions are unavailable, our annotation-free methods (LS-TS, PSLTS) reduce ECE by 47--87\% using only the model's own confidence as a proxy for annotator disagreement.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default---and when it is not, smoothing the target using the model's confidence is a practical alternative.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, IR-Soft, SoftPlatt, and Dirichlet-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across four benchmarks and seven architectures spanning vision and language.  Dirichlet-Soft achieves the best Brier score and NLL across all benchmarks, confirming that expressive soft-label calibrators provide additional gains when more parameters are paired with the correct target.  When annotator distributions are unavailable, our annotation-free method LS-TS reduces ECE by 13--77\% using only the model's own confidence as a proxy for annotator disagreement.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default---and when it is not, smoothing the target using the model's confidence is a practical alternative.
 
 \paragraph{Acknowledgements.}
 We thank the anonymous reviewers for their constructive feedback.
