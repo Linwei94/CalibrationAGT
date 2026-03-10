@@ -564,8 +564,8 @@ All methods require $m\ge 5$ annotations per calibration example (Appendix~\ref{
 \paragraph{Limitations.}
 Soft calibration requires multi-annotator labels at calibration time.
 We assume rational annotators; purely noisy annotations would yield biased estimates of $\pi(x)$.
-True-label ECE evaluation requires sampling from $\pi(\cdot\mid x)$, though a single annotator per test example suffices in practice.
-The ISIC~2019 and DermaMNIST experiments use synthetic annotations; results on fully real multi-annotator medical datasets may differ.
+True-label ECE evaluation uses 100 Monte Carlo draws from $\pi(\cdot\mid x)$ per example; while this provides stable per-example estimates, main-table results are from a single calibration split (seed 42).  The calibration-set-size ablation (Appendix~\ref{app:n-annotators}) and the MCTS convergence analysis (Appendix~\ref{app:mcts}) show low variance across seeds for CIFAR-10H; we expect similar stability on other datasets, but multi-seed evaluation across all benchmarks remains future work.
+The ISIC~2019 and DermaMNIST experiments use synthetic annotations derived from clinician-reported agreement rates \citep{liu2020deep}; the annotations are not generated from the model's outputs.  Nevertheless, results on fully real multi-annotator medical datasets would provide stronger validation, and CIFAR-10H (51 real annotators) and ChaosNLI (100 real annotators) serve as the primary evidence for the core claims.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
@@ -642,6 +642,10 @@ As $H(x)$ increases, $q=\pi_{y^*}(x)$ decreases below 1 (more probability mass s
 \paragraph{Aggregate monotonicity.}
 The aggregate calibration gap $\Delta=\ECEtrue-\ECEvoted$ equals $\sum_b\frac{|B_b|}{n}\sum_{i\in B_b}\delta(x_i)/|B_b|$.  Since $\delta(x_i)$ is non-decreasing in $H(x_i)$ and bins contain a mixture of examples, $\Delta$ grows with the mean annotation entropy of the test set.  The same argument holds within each entropy stratum, directly predicting the Q1$\to$Q4 pattern confirmed in Figure~\ref{fig:stratified}.  $\square$
 
+\begin{remark}[Independence assumption]
+Assumption~(i)---that $\phat_{\hat{c}}(x)$ is approximately independent of $H(x)$---may be violated in practice if harder examples (high $H(x)$) also have lower model confidence.  When the two are positively correlated, the per-example gap contribution $\delta(x)$ grows even faster with $H(x)$ than the proof suggests, so Proposition~\ref{prop:entropy-gap} remains valid and the monotonicity is if anything \emph{conservative}.  The empirical Q1$\to$Q4 ECE breakdown in Figure~\ref{fig:stratified} provides direct evidence that the aggregate pattern holds regardless of the exact strength of this assumption.
+\end{remark}
+
 \section{Effect of Number of Annotations}
 \label{app:n-annotators}
 
@@ -716,6 +720,8 @@ A potential confound in our results is that soft-label methods (SLTS, VS, IR-Sof
 \end{itemize}
 
 Table~\ref{tab:target-ablation} shows results across four datasets.  Within each architecture class, changing only the target—from voted to soft—reduces ECE by $2$--$8\times$ (with larger reductions on higher-entropy datasets such as DermaMNIST), while adding more parameters within the same target type (Platt $\to$ Dirichlet-Hard) yields no improvement.  This directly confirms that the calibration gap is a \emph{target problem}, not a \emph{capacity problem}.
+
+A natural alternative hypothesis is that soft labels merely provide richer regularization at calibration time, and that any method trained on them would benefit regardless of the loss formulation.  The ablation refutes this in two ways.  First, \emph{SLTS} (one free parameter, soft target) reduces ECE by $65$--$85\%$, while \emph{Dirichlet-Hard} ($K^2+K$ parameters, hard target) reduces ECE by $\mathbf{0\%}$ or worse.  If richer information (more annotator labels) drove the improvement through regularization, the higher-capacity Dirichlet-Hard should benefit at least as much as the scalar SLTS.  Second, \emph{SoftPlatt} (same Platt parameterization, but fitted on soft labels) achieves nearly identical ECE to SLTS, confirming that the target, not the architecture, is the controlling factor.
 
 \begin{table}[h]
   \centering
