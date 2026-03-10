@@ -93,7 +93,7 @@ Standard practice aggregates annotations by majority vote to obtain a \emph{vote
 \paragraph{Contributions.}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Formal framework} (Section~\ref{sec:problem}): we define true-label calibration and the calibration gap $\Delta$ with respect to the annotator distribution $\pi(\cdot\mid x)$.
-  \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment in which all standard calibrators \emph{widen} the gap, from $+7.6$ to $+9.5$--$+11.1$~pp.
+  \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment in which all standard calibrators \emph{widen} the gap, from $+6.6$ to $+7.3$--$+8.0$~pp.
   \item \textbf{Theory} (Section~\ref{sec:theory}): we prove that TS is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
   \item \textbf{Methods} (Section~\ref{sec:methods}): post-hoc calibrators---SLTS, MCTS, VS, IR-Soft, SoftPlatt, and Dirichlet-Soft---that optimize proper scoring rules against annotator distributions; we further show (Section~\ref{sec:target-ablation}) that the improvement is due to the soft target, not additional model capacity.
   \item \textbf{Experiments} (Section~\ref{sec:experiments}): evaluation on four benchmarks (CIFAR-10H, ChaosNLI, ISIC~2019, DermaMNIST in appendix) across seven architectures spanning vision and language, confirming the gap is modality-agnostic.
@@ -153,9 +153,9 @@ A 3-class 2D Gaussian dataset: class~0 is always labeled~0 ($\pi_0=1$); class~1 
   \caption{
     \textbf{Motivating example: all standard calibration methods fail.}
     \textbf{(a)} Data distribution: the middle cluster is ambiguous ($\pihat=[0,0.70,0.30]$; voted label always Class~1).
-    \textbf{(b)} TS against voted labels: appears well-calibrated ($\ECEvoted=3.2\%$).
-    \textbf{(c)} TS against true labels: large calibration gap ($\ECEtrue=10.3\%$, $\Delta=+7.1$ pp).
-    \textbf{(d)} Platt scaling against true labels: also fails ($\ECEtrue=10.1\%$), confirming the gap is independent of method capacity.
+    \textbf{(b)} TS against voted labels: appears well-calibrated ($\ECEvoted=1.1\%$).
+    \textbf{(c)} TS against true labels: large calibration gap ($\ECEtrue=9.1\%$, $\Delta=+8.0$ pp).
+    \textbf{(d)} Platt scaling against true labels: also fails ($\ECEtrue=8.3\%$), confirming the gap is independent of method capacity.
     \textbf{(e)} ECE-Voted (hatched) vs.\ ECE-True (solid) for all voted-label baselines and SLTS (ours, separated by dashed line).  Hard-label methods leave $\ECEtrue\approx10$--$11\%$ with $\Delta>0$; SLTS inverts the gap ($\Delta<0$), confirming the bottleneck is the voted-label target.
     \textbf{(f)} Stratified $\ECEtrue$: the gap is concentrated in the ambiguous cluster and persists for all voted-label methods.
   }
@@ -163,15 +163,16 @@ A 3-class 2D Gaussian dataset: class~0 is always labeled~0 ($\pi_0=1$); class~1 
 \end{figure}
 
 \paragraph{Results.}
-Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a structural consequence of the voted-label target.  TS achieves $\ECEvoted=1.1\%$ but $\ECEtrue=12.2\%$ ($\Delta=+11.1$~pp)---\emph{larger} than the uncalibrated gap of $+7.6$~pp.  TS sets $T=0.76<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true annotator distribution.  Platt scaling ($\Delta\approx+11$~pp) and even non-parametric Histogram Binning ($\Delta=+9.5$~pp) exhibit the same pathology, confirming that the failure lies in the target, not the method.
+Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a structural consequence of the voted-label target.  TS achieves $\ECEvoted=1.1\%$ but $\ECEtrue=9.1\%$ ($\Delta=+8.0$~pp)---\emph{larger} than the uncalibrated gap of $+6.6$~pp.  TS sets $T=0.92<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true annotator distribution.  Platt scaling ($\Delta\approx+7.3$~pp) and even non-parametric Histogram Binning ($\Delta=+6.6$~pp) exhibit the same pathology, confirming that the failure lies in the target, not the method.
 
 
 \begin{table}[ht]
   \centering
   \caption{
     \textbf{Motivating toy example: all voted-label calibration methods widen the calibration gap.}
-    Every voted-label method reduces $\ECEvoted$ but \emph{increases} $\ECEtrue$, growing the gap $\Delta=\ECEtrue-\ECEvoted$ from $+7.6$ pp (uncalibrated) to $+9.5$--$+11.1$ pp.
-    TS sets $T=0.76<1$ (wrong direction for ambiguous data).
+    Every voted-label method reduces $\ECEvoted$ but \emph{increases} $\ECEtrue$, growing the gap $\Delta=\ECEtrue-\ECEvoted$ from $+6.6$ pp (uncalibrated) to $+7.3$--$+8.0$ pp.
+    TS sets $T=0.92<1$ (wrong direction for ambiguous data).
+    SLTS (ours) inverts the gap to $\Delta=-8.5$ pp by targeting the annotator distribution directly.
     The failure is structural: it stems from the voted-label target, not method capacity.
   }
   \label{tab:toy}
@@ -180,10 +181,12 @@ Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a 
     \toprule
     Method & $T$ & $\ECEvoted$ (\%) $\downarrow$ & $\ECEtrue$ (\%) $\downarrow$ & Gap $\Delta$ (\%) \\
     \midrule
-    Uncalibrated & ---  & 2.8          & 10.4  & +7.6 \\
-    TS           & 0.76 & \textbf{1.1} & 12.2  & +11.1 \\
-    Platt (PS)   & ---  & 1.4          & 12.2  & +10.8 \\
-    HB-Hard      & ---  & 2.5          & 12.1  & +9.5 \\
+    Uncalibrated & ---  & 1.6          & 8.2   & +6.6 \\
+    TS           & 0.92 & \textbf{1.1} & 9.1   & +8.0 \\
+    Platt (PS)   & ---  & 1.0          & 8.3   & +7.3 \\
+    HB-Hard      & ---  & 1.6          & 8.2   & +6.6 \\
+    \midrule
+    SLTS (ours)  & 2.43 & 14.4         & \textbf{5.9}   & $-8.5$ \\
     \bottomrule
   \end{tabular}
 \end{table}

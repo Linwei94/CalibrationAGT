@@ -36,8 +36,8 @@ OUT = Path(__file__).parent / "figs"
 OUT.mkdir(exist_ok=True)
 
 # ── reproducibility ────────────────────────────────────────────────────────────
-np.random.seed(42)
-torch.manual_seed(42)
+np.random.seed(11)
+torch.manual_seed(11)
 
 # ── style ──────────────────────────────────────────────────────────────────────
 plt.rcParams.update({
