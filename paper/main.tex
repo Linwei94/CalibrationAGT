@@ -69,7 +69,7 @@ We show that post-hoc calibrators fitted on majority-voted labels exhibit a syst
 The gap is structural, affecting Temperature Scaling, Platt scaling, and Histogram Binning alike, because all share the same one-hot target.
 We prove that Temperature Scaling is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
 To close it, we propose \textbf{Soft-Label Temperature Scaling (SLTS)} and related methods that optimize proper scoring rules against the full annotator distribution.
-Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST---spanning seven architectures across vision and language---show that our methods reduce true-label ECE by 48--91\% relative to standard Temperature Scaling.
+Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST (the last two using synthetic annotator models calibrated to published clinical agreement rates)---spanning seven architectures across vision and language---show that our methods reduce true-label ECE by 48--91\% relative to standard Temperature Scaling.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -309,7 +309,7 @@ We evaluate on three main benchmarks with multi-annotator data, each with two ba
 We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \citep{platt1999probabilistic,kull2019beyond}; (iv)~\textbf{Dirichlet-Hard}: Dirichlet calibration \citep{kull2019beyond} with the full $K\times K$ weight matrix and bias, calibrated against voted labels---the most expressive standard post-hoc calibrator; (v)~\textbf{HB-Hard}: equal-width Histogram Binning \citep{zadrozny2001obtaining} with voted labels.
 
 \paragraph{Metrics.}
-All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  After Table~\ref{tab:main} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
+All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  We use $\ECEtrue$ (sampled) rather than $\mathrm{ECE}_{\text{soft}}$ (direct KL from $\pihat$) because it mirrors the evaluation protocol a practitioner faces when only one label is observed at test time; the Brier score and NLL directly measure distributional alignment with $\pihat$ and serve as complementary soft metrics.  After Table~\ref{tab:main} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{CIFAR-10H}
@@ -317,7 +317,7 @@ All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $
 % ─────────────────────────────────────────────────────────────────────────────
 
 \paragraph{Dataset and models.}
-CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per image for the 10\,000-image CIFAR-10 test set.  The test set is split into calibration ($n=5{,}000$) and evaluation ($5{,}000$) by stratified sampling.  We evaluate two architectures:
+CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per image for the 10\,000-image CIFAR-10 test set.  The test set is split into calibration ($n=5{,}000$) and evaluation ($5{,}000$) by stratified sampling (seed 42).  We evaluate two architectures:
 \textbf{ResNet-50} \citep{he2016deep} pretrained on ImageNet-1k, fine-tuned for 30 epochs (AdamW, cosine annealing), achieving 97.3\% top-1 accuracy.
 \textbf{ViT-B/16} \citep{dosovitskiy2021image} pretrained on ImageNet-21k, fine-tuned with the same protocol, achieving 98.1\% top-1 accuracy.
 
@@ -988,7 +988,7 @@ Table~\ref{tab:stratified} provides the full numerical values underlying Figure~
 \paragraph{ChaosNLI models.}
 \textit{RoBERTa-Large}: \texttt{roberta-large-mnli} from HuggingFace, pre-fine-tuned on MultiNLI \citep{liu2019roberta}; no additional fine-tuning.
 \textit{DeBERTa-v3-base}: \texttt{cross-encoder/nli-deberta-v3-base} from HuggingFace \citep{he2021debertav3}; no additional fine-tuning.
-Both models use the combined ChaosNLI SNLI+MNLI subset ($n=3{,}113$), split 50/50 into calibration and test.
+Both models use the combined ChaosNLI SNLI+MNLI subset ($n=3{,}113$), split 50/50 into calibration and test (stratified, seed 42).
 
 \paragraph{ISIC 2019 models.}
 \textit{EfficientNet-B4}: ImageNet-1k weights; stratified 70/15/15 split; class-weighted cross-entropy (NV: ${\approx}67\%$ of training images); AdamW, lr$=3\times10^{-4}$, weight decay $10^{-4}$, 2-epoch linear warm-up + cosine decay, 20 epochs, $380\times380$.
