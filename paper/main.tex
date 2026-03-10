@@ -283,6 +283,9 @@ We use \emph{instance-adaptive} smoothing $\varepsilon_i = 1 - \hat p_{y^*_i}(x_
 Here $\varepsilon_i$ increases when the model is uncertain on example $x_i$, reflecting the intuition that harder inputs are more likely to be annotator-ambiguous.
 Both methods fit TS against these pseudo-targets by minimizing the same KL objective as SLTS; the result is a single temperature $T^*$ that is larger than $T^*_{\mathrm{TS}}$ on datasets where $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without access to annotator data.
 
+\paragraph{Theoretical interpretation.}
+The global smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, both methods can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Iterating EM to convergence is possible but empirically offers no gain over the single-step version (results not shown), likely because the one-step pseudo-labels already capture the dominant temperature shift.
+
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
 \label{sec:experiments}
