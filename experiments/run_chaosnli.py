@@ -41,7 +41,8 @@ from tqdm import tqdm
 # ── local imports ──────────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
 from calibration import (
-    TemperatureScaling, PlattScaling,
+    TemperatureScaling, PlattScaling, DirichletCalibration,
+    SoftPlattScaling,
     SoftLabelTS, MonteCarloTS, VectorScaling,
     HardHistogramBinning, SoftHistogramBinning, SoftIsotonicRegression,
     apply_parametric,
@@ -263,13 +264,18 @@ def run_experiment(args):
           f"N={np.mean(hard_labels==1):.2%}, C={np.mean(hard_labels==2):.2%}")
     print(f"  Mean annotation entropy: {annotation_entropy(soft_labels).mean():.4f}")
 
-    # ── 2. Model ──────────────────────────────────────────────────────────────
-    print(f"\n[2/5] Loading model ({arch}) ...")
-    model, tokenizer, config = load_nli_model(arch, device)
+    # ── 2. Model (skip if logits are cached) ──────────────────────────────────
+    logits_cache = os.path.join(cache_dir, f"logits_chaosnli_{subset}_{arch}.npy")
+    config = MODEL_CONFIGS[arch]
+    if not os.path.exists(logits_cache):
+        print(f"\n[2/5] Loading model ({arch}) ...")
+        model, tokenizer, _ = load_nli_model(arch, device)
+    else:
+        print(f"\n[2/5] Logits cache found, skipping model load ({arch})")
+        model, tokenizer = None, None
 
     # ── 3. Logits ─────────────────────────────────────────────────────────────
     print(f"\n[3/5] Extracting logits ...")
-    logits_cache = os.path.join(cache_dir, f"logits_chaosnli_{subset}_{arch}.npy")
     logits_all = extract_logits_nli(
         model, tokenizer, examples, device,
         batch_size=32, cache_path=logits_cache,
@@ -312,8 +318,9 @@ def run_experiment(args):
     print("\n[5/5] Fitting calibration methods and evaluating ...")
 
     # Parametric — baselines (hard/voted labels)
-    ts = TemperatureScaling().fit(logits_cal, yh_cal_t)
-    ps = PlattScaling(N_CLASSES).fit(logits_cal, yh_cal_t)
+    ts   = TemperatureScaling().fit(logits_cal, yh_cal_t)
+    ps   = PlattScaling(N_CLASSES).fit(logits_cal, yh_cal_t)
+    dc_h = DirichletCalibration(N_CLASSES).fit_hard(logits_cal, yh_cal_t)
 
     print(f"  T (TS):   {ts.T:.4f}")
 
@@ -321,6 +328,8 @@ def run_experiment(args):
     slts = SoftLabelTS().fit(logits_cal, ys_cal_t)
     mcts = MonteCarloTS(n_samples=50).fit(logits_cal, ys_cal_t)
     vs   = VectorScaling(N_CLASSES).fit(logits_cal, ys_cal_t)
+    dc_s = DirichletCalibration(N_CLASSES).fit_soft(logits_cal, ys_cal_t)
+    sp_s = SoftPlattScaling(N_CLASSES).fit(logits_cal, ys_cal_t)
 
     print(f"  T (SLTS): {slts.T:.4f}")
     print(f"  T (MCTS): {mcts.T:.4f}")
@@ -337,18 +346,24 @@ def run_experiment(args):
     # Parametric: get full probability vectors
     p_ts   = apply_parametric(ts,   logits_all[idx_te])
     p_ps   = apply_parametric(ps,   logits_all[idx_te])
+    p_dc_h = apply_parametric(dc_h, logits_all[idx_te])
     p_slts = apply_parametric(slts, logits_all[idx_te])
     p_mcts = apply_parametric(mcts, logits_all[idx_te])
     p_vs   = apply_parametric(vs,   logits_all[idx_te])
+    p_dc_s = apply_parametric(dc_s, logits_all[idx_te])
+    p_sp_s = apply_parametric(sp_s, logits_all[idx_te])
 
     main_results = []
     for name, p in [
-        ("Uncalibrated",   probs_te),
-        ("TS",             p_ts),
-        ("Platt (PS)",     p_ps),
-        ("MCTS (ours)",    p_mcts),
-        ("SLTS (ours)",    p_slts),
-        ("VS (ours)",      p_vs),
+        ("Uncalibrated",          probs_te),
+        ("TS",                    p_ts),
+        ("Platt (PS)",            p_ps),
+        ("Dirichlet-Hard",        p_dc_h),
+        ("MCTS (ours)",           p_mcts),
+        ("SLTS (ours)",           p_slts),
+        ("SoftPlatt (ours)",      p_sp_s),
+        ("VS (ours)",             p_vs),
+        ("Dirichlet-Soft (ours)", p_dc_s),
     ]:
         r = compute_all_metrics(p, yh_te, ys_te, n_bins=n_bins, name=name)
         r["temperature"] = (

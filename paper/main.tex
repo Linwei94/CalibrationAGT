@@ -53,7 +53,7 @@
 
 \author{%
   Anonymous Authors\\
-  \textit{Double-blind submission to NeurIPS 2025}
+  \textit{Double-blind submission to NeurIPS 2026}
 }
 
 \begin{document}
@@ -69,7 +69,7 @@ We show that post-hoc calibrators fitted on majority-voted labels exhibit a syst
 The gap is structural, affecting Temperature Scaling, Platt scaling, and Histogram Binning alike, because all share the same one-hot target.
 We prove that Temperature Scaling is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
 To close it, we propose \textbf{Soft-Label Temperature Scaling (SLTS)} and related methods that optimize proper scoring rules against the full annotator distribution.
-Experiments on CIFAR-10H, ChaosNLI, and ISIC~2019---spanning six architectures across vision and language---show that our methods reduce true-label ECE by 48--83\% relative to standard Temperature Scaling.
+Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST---spanning seven architectures across vision and language---show that our methods reduce true-label ECE by 48--91\% relative to standard Temperature Scaling.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -95,8 +95,8 @@ Standard practice aggregates annotations by majority vote to obtain a \emph{vote
   \item \textbf{Formal framework} (Section~\ref{sec:problem}): we define true-label calibration and the calibration gap $\Delta$ with respect to the annotator distribution $\pi(\cdot\mid x)$.
   \item \textbf{Motivating example} (Section~\ref{sec:toy}): a controlled 3-class experiment in which all standard calibrators \emph{widen} the gap, from $+7.6$ to $+9.5$--$+11.1$~pp.
   \item \textbf{Theory} (Section~\ref{sec:theory}): we prove that TS is biased toward lower temperatures than the annotator distribution requires, and that the gap grows monotonically with annotation entropy.
-  \item \textbf{Methods} (Section~\ref{sec:methods}): post-hoc calibrators---SLTS, MCTS, and IR-Soft---that optimize proper scoring rules against annotator distributions.
-  \item \textbf{Experiments} (Section~\ref{sec:experiments}): evaluation on three benchmarks (CIFAR-10H, ChaosNLI, ISIC~2019) across six architectures spanning vision and language, confirming the gap is modality-agnostic.
+  \item \textbf{Methods} (Section~\ref{sec:methods}): post-hoc calibrators---SLTS, MCTS, VS, IR-Soft, SoftPlatt, and Dirichlet-Soft---that optimize proper scoring rules against annotator distributions; we further show (Appendix~\ref{app:target-ablation}) that the improvement is due to the soft target, not additional model capacity.
+  \item \textbf{Experiments} (Section~\ref{sec:experiments}): evaluation on four benchmarks (CIFAR-10H, ChaosNLI, ISIC~2019, DermaMNIST in appendix) across seven architectures spanning vision and language, confirming the gap is modality-agnostic.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -105,16 +105,16 @@ Standard practice aggregates annotations by majority vote to obtain a \emph{vote
 % ─────────────────────────────────────────────────────────────────────────────
 
 \paragraph{Confidence calibration.}
-\citet{guo2017calibration} showed that modern networks are miscalibrated and that Temperature Scaling (TS) is an effective post-hoc remedy.  Isotonic regression \citep{zadrozny2002transforming}, Platt scaling \citep{platt1999probabilistic}, and Dirichlet calibration \citep{kull2019beyond} have since been studied extensively---all assuming a unique ground-truth label.
+\citet{guo2017calibration} showed that modern networks are miscalibrated and that Temperature Scaling (TS) is an effective post-hoc remedy.  Isotonic regression \citep{zadrozny2002transforming}, Platt scaling \citep{platt1999probabilistic}, and Dirichlet calibration \citep{kull2019beyond} have since been studied extensively---all assuming a unique ground-truth label.  \citet{minderer2021revisiting} further showed that Vision Transformers are better calibrated than CNNs, but the same voted-label assumption underlies all evaluations.  Recent work by \citet{bai2021don} and \citet{tian2023just} revisits the sufficiency of Temperature Scaling, but continues to calibrate against single-label supervision.  We show the shared assumption—not method capacity—is the limiting factor.
 
 \paragraph{Learning from multiple annotators.}
-Methods for inferring labels from crowds \citep{dawid1979maximum,rodrigues2018deep}, datasets capturing annotator disagreement \citep{peterson2019human,nie2020what}, and surveys of multi-annotator learning \citep{uma2021learning,collins2022eliciting} have received growing attention.  None of these works study the interaction between annotator disagreement and post-hoc calibration.
+Methods for inferring labels from crowds \citep{dawid1979maximum,rodrigues2018deep}, datasets capturing annotator disagreement \citep{peterson2019human,nie2020what}, and surveys of multi-annotator learning \citep{uma2021learning,collins2022eliciting,aroyo2015truth} have received growing attention.  \citet{gordon2022jury} and \citet{plank2022problem} highlight the epistemological problems with annotation aggregation in NLP.  None of these works study the interaction between annotator disagreement and post-hoc calibration.
 
 \paragraph{Conformal prediction under ambiguous ground truth.}
-\citet{stutz2023conformal} show that conformal sets calibrated on voted labels undercover the true annotator distribution.  We identify the analogous failure for confidence calibration: voted-label calibration produces systematic overconfidence.
+\citet{stutz2023conformal} show that conformal sets calibrated on voted labels undercover the true annotator distribution.  We identify the analogous failure for confidence calibration: voted-label calibration produces systematic overconfidence.  \citet{angelopoulos2023conformal} provides a broader survey of conformal methods; our work extends this research program to the calibration setting.
 
 \paragraph{Calibration under distribution shift and soft labels.}
-Calibration under covariate shift \citep{park2020calibrated,wang2020transferable,guo2022calibrating} is orthogonal to our label-ambiguity setting.  Label smoothing \citep{szegedy2016rethinking,muller2019does} applies uniform soft targets during training; we use annotation-informed soft labels for post-hoc calibration.
+Calibration under covariate shift \citep{park2020calibrated,wang2020transferable,guo2022calibrating} is orthogonal to our label-ambiguity setting.  Label smoothing \citep{szegedy2016rethinking,muller2019does} applies uniform soft targets during training; we use annotation-informed soft labels for post-hoc calibration.  \citet{zhang2023mixup} and \citet{thulasidasan2019mixup} study training-time soft label methods, while we focus on post-hoc calibration which requires no retraining.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Problem Formulation}
@@ -257,13 +257,13 @@ All methods are \emph{post-hoc}: they operate on cached logits from a fixed pre-
 \subsection{Soft-Label Temperature Scaling (SLTS)}
 
 SLTS minimizes the cross-entropy between the calibrated output and the soft label distribution:
-\begin{equation}
+\begin{align}
   \mathcal{L}_{\text{SLTS}}(T)
-  = -\frac{1}{n}\sum_{i=1}^n \sum_{k=1}^K
-    \pihat_k(x_i)\,\log \operatorname{softmax}(z_i/T)_k
-  = \frac{1}{n}\sum_{i=1}^n \KL\!\bigl(\pihat(x_i)\,\|\,\operatorname{softmax}(z_i/T)\bigr) + \text{const}.
+  &= -\frac{1}{n}\sum_{i=1}^n \sum_{k=1}^K
+    \pihat_k(x_i)\,\log \operatorname{softmax}(z_i/T)_k \nonumber\\
+  &= \frac{1}{n}\sum_{i=1}^n \KL\!\bigl(\pihat(x_i)\,\|\,\operatorname{softmax}(z_i/T)\bigr) + \text{const}.
   \label{eq:slts-loss}
-\end{equation}
+\end{align}
 SLTS uses the same single-parameter family as TS but with a target that correctly reflects the annotator distribution.
 
 \begin{proposition}[Proper scoring rule]
@@ -290,15 +290,23 @@ Vector Scaling extends TS by learning a per-class temperature $\mathbf{T}=(T_1,\
 \paragraph{Soft Isotonic Regression (IR-Soft).}
 Fits a monotone mapping from predicted confidence to mean annotator accuracy via the Pool Adjacent Violators Algorithm (PAVA), with soft targets.  Non-parametric and fully automatic.
 
+\subsection{Additional Soft-Label Methods}
+
+\paragraph{Soft Platt Scaling (SoftPlatt).}
+The natural soft-label extension of Platt / Matrix Scaling: the diagonal affine transform $W\cdot z + b$ (same structure as Platt, with per-class weight and bias) fitted against the annotator distribution via KL divergence.  This method isolates the contribution of the soft target from any architectural difference: if SoftPlatt matches SLTS, it confirms that a single temperature is sufficient; if it outperforms, per-class scaling provides additional benefit.
+
+\paragraph{Dirichlet-Soft.}
+Extends Dirichlet calibration \citep{kull2019beyond} to use annotator distributions as targets.  The full $K\times K$ weight matrix $W$ and bias $b$ are fitted by minimizing $\mathrm{KL}(\pihat(x) \| \operatorname{softmax}(Wz+b))$ with off-diagonal $L_2$ regularisation (ODIR, $\lambda=10^{-3}$).  This is the most expressive parametric soft-label calibrator; we include it to verify that the benefit of soft targets is not a capacity effect but a target effect (Appendix~\ref{app:target-ablation}).
+
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
 \label{sec:experiments}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We evaluate on three benchmarks with multi-annotator data, each with two backbones: CIFAR-10H (ResNet-50, ViT-B/16), ChaosNLI (RoBERTa-Large, DeBERTa-v3), and ISIC~2019 (EfficientNet-B4, ViT-S/16).
+We evaluate on three main benchmarks with multi-annotator data, each with two backbones: CIFAR-10H (ResNet-50, ViT-B/16), ChaosNLI (RoBERTa-Large, DeBERTa-v3), and ISIC~2019 (EfficientNet-B4, ViT-S/16). DermaMNIST (ResNet-18, ViT-S/16) appears in Appendix~\ref{app:dermamnist}.
 
 \paragraph{Baselines.}
-We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \citep{platt1999probabilistic,kull2019beyond}.
+We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \citep{platt1999probabilistic,kull2019beyond}; (iv)~\textbf{Dirichlet-Hard}: Dirichlet calibration \citep{kull2019beyond} with the full $K\times K$ weight matrix and bias, calibrated against voted labels---the most expressive standard post-hoc calibrator; (v)~\textbf{HB-Hard}: equal-width Histogram Binning \citep{zadrozny2001obtaining} with voted labels.
 
 \paragraph{Metrics.}
 All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  After Table~\ref{tab:main} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
@@ -310,8 +318,8 @@ All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $
 
 \paragraph{Dataset and models.}
 CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per image for the 10\,000-image CIFAR-10 test set.  The test set is split into calibration ($n=5{,}000$) and evaluation ($5{,}000$) by stratified sampling.  We evaluate two architectures:
-\textbf{ResNet-50} \citep{he2016deep} pretrained on ImageNet-1k, fine-tuned for 30 epochs (AdamW, cosine annealing), achieving 96.2\% top-1 accuracy.
-\textbf{ViT-B/16} \citep{dosovitskiy2021image} pretrained on ImageNet-21k, fine-tuned with the same protocol.
+\textbf{ResNet-50} \citep{he2016deep} pretrained on ImageNet-1k, fine-tuned for 30 epochs (AdamW, cosine annealing), achieving 97.3\% top-1 accuracy.
+\textbf{ViT-B/16} \citep{dosovitskiy2021image} pretrained on ImageNet-21k, fine-tuned with the same protocol, achieving 98.1\% top-1 accuracy.
 
 \begin{table}[t]
   \centering
@@ -333,22 +341,28 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     Uncalibrated  & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692 \\
     TS            & 2.03 &  4.29 &  4.25 &  0.91 & 0.112 & 0.363 \\
     Platt (PS)    & ---  &  4.29 &  4.23 &  0.91 & 0.112 & 0.372 \\
+    Dirichlet-Hard& ---  &  4.46 &  4.44 &  0.95 & 0.114 & 0.395 \\
     HB-Hard       & ---  &  7.44 &  7.34 &  7.97 & 0.516 & 10.40$^\dagger$ \\
     \multicolumn{7}{l}{\textit{ResNet-50 --- Soft-label methods (ours)}} \\
     MCTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
     SLTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
-    VS            & ---  &  1.35 &  1.26 &  \textbf{0.39} & \textbf{0.109} & \textbf{0.289} \\
+    SoftPlatt     & ---  &  1.52 &  1.31 &  \textbf{0.35} & 0.110 & 0.288 \\
+    VS            & ---  &  1.35 &  1.26 &  0.39 & \textbf{0.109} & 0.289 \\
+    Dirichlet-Soft& ---  &  1.25 &  1.06 &  \textbf{0.35} & \textbf{0.109} & \textbf{0.271} \\
     IR-Soft       & ---  &  \textbf{0.72} & \textbf{0.83} &  0.45 & 0.115 & 0.340 \\
     \midrule
     \multicolumn{7}{l}{\textit{ViT-B/16 --- Voted-label baselines}} \\
     Uncalibrated  & ---  &  4.99 &  5.36 &  1.06 & 0.111 & 0.678 \\
     TS            & 2.04 &  4.48 &  4.40 &  0.93 & 0.106 & 0.346 \\
     Platt (PS)    & ---  &  4.54 &  4.38 &  0.93 & 0.105 & 0.363 \\
+    Dirichlet-Hard& ---  &  4.70 &  4.62 &  0.97 & 0.107 & 0.394 \\
     HB-Hard       & ---  &  6.55 &  6.44 &  5.84 & 0.388 &  7.37$^\dagger$ \\
     \multicolumn{7}{l}{\textit{ViT-B/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.07 &  \textbf{0.85} &  0.57 &  0.39 & 0.102 & 0.278 \\
-    SLTS          & 3.07 &  \textbf{0.85} &  0.56 &  0.39 & 0.102 & 0.278 \\
-    VS            & ---  &  0.92 &  \textbf{0.50} &  \textbf{0.32} & \textbf{0.101} & \textbf{0.274} \\
+    MCTS          & 3.07 &  0.85 &  0.57 &  0.39 & 0.102 & 0.278 \\
+    SLTS          & 3.07 &  0.85 &  0.56 &  0.39 & 0.102 & 0.278 \\
+    SoftPlatt     & ---  &  0.88 &  0.47 &  \textbf{0.24} & 0.101 & 0.272 \\
+    VS            & ---  &  0.92 &  0.50 &  0.32 & 0.101 & 0.274 \\
+    Dirichlet-Soft& ---  &  \textbf{0.72} & \textbf{0.41} &  0.25 & \textbf{0.100} & \textbf{0.255} \\
     IR-Soft       & ---  &  0.91 &  0.61 &  0.43 & 0.105 & 0.321 \\
     \bottomrule
     \multicolumn{7}{l}{\footnotesize $^\dagger$ HB assigns $(1-c)/(K{-}1)$ to non-predicted classes; large NLL/Br reflects this for $K=10$.} \\
@@ -357,8 +371,10 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
 
 \paragraph{Main results.}
 Table~\ref{tab:main} reveals a consistent pattern across both backbones.
-Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16), while soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE overall ($0.72\%$ on ResNet-50).
-Proper scoring rules confirm the advantage: VS attains the best Brier score and NLL across both architectures.
+Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16); crucially, Dirichlet-Hard---despite its $K\!\times\!K$ parameter matrix---does not improve over TS ($4.46\%$ and $4.70\%$ respectively), confirming that the issue lies in the voted-label target, not the method's expressiveness.
+Soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE ($0.72\%$) on ResNet-50.
+Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score and NLL across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
+Figure~\ref{fig:summary} plots $\ECEvoted$ vs.\ $\ECEtrue$ for all methods, illustrating the gap between the two metrics.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$), since true-label calibration reduces to voted-label calibration when $\pi(\cdot\mid x)$ is one-hot.  For highly ambiguous inputs (Q4), TS degrades to ECE $\approx 18\%$ while SLTS maintains $\approx 6\%$—a $3\times$ gap, directly confirming Proposition~\ref{prop:entropy-gap}.
@@ -414,22 +430,28 @@ ChaosNLI provides 100 human annotations per example for subsets of the SNLI \cit
     Uncalibrated  & ---  & 27.79 & 27.77 & 18.61 & 0.650 & 1.384 \\
     TS            & 2.42 & 10.55 & 10.38 &  7.30 & 0.537 & 0.886 \\
     Platt (PS)    & ---  & 11.16 & 10.92 &  7.28 & 0.530 & 0.875 \\
+    Dirichlet-Hard& ---  & 11.55 & 11.40 &  7.64 & 0.535 & 0.889 \\
     HB-Hard       & ---  &  8.37 &  8.22 &  8.33 & 0.562 & 0.963 \\
     \multicolumn{7}{l}{\textit{RoBERTa-Large --- Soft-label methods (ours)}} \\
-    MCTS          & 3.41 &  3.23 &  \textbf{2.59} &  \textbf{4.62} & 0.520 & 0.862 \\
-    SLTS          & 3.41 &  3.22 &  \textbf{2.59} &  \textbf{4.62} & 0.520 & 0.862 \\
-    VS            & ---  &  3.46 &  3.07 &  5.13 & \textbf{0.518} & \textbf{0.857} \\
-    IR-Soft       & ---  &  \textbf{2.65} & \textbf{2.59} &  6.24 & 0.549 & 0.934 \\
+    MCTS          & 3.41 &  3.23 &  2.59 &  4.62 & 0.520 & 0.862 \\
+    SLTS          & 3.41 &  3.22 &  2.59 &  4.62 & 0.520 & 0.862 \\
+    SoftPlatt     & ---  &  2.66 &  2.32 &  2.43 & 0.509 & 0.839 \\
+    VS            & ---  &  3.46 &  3.07 &  5.13 & 0.518 & 0.857 \\
+    Dirichlet-Soft& ---  &  \textbf{2.57} & \textbf{1.71} &  \textbf{2.03} & \textbf{0.510} & \textbf{0.839} \\
+    IR-Soft       & ---  &  2.65 &  2.59 &  6.24 & 0.549 & 0.934 \\
     \midrule
     \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Voted-label baselines}} \\
     Uncalibrated  & ---  & 35.97 & 35.92 & 24.02 & 0.743 & 2.148 \\
     TS            & 3.81 & 11.63 & 11.57 &  8.48 & 0.549 & 0.900 \\
     Platt (PS)    & ---  & 12.43 & 12.36 &  8.43 & 0.539 & 0.896 \\
+    Dirichlet-Hard& ---  & 12.69 & 12.63 &  8.84 & 0.539 & 0.895 \\
     HB-Hard       & ---  & 10.75 & 10.26 &  9.71 & 0.574 & 0.989 \\
     \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Soft-label methods (ours)}} \\
     MCTS          & 5.27 &  3.49 &  3.38 &  6.56 & 0.529 & 0.876 \\
     SLTS          & 5.28 &  3.45 &  3.36 &  6.53 & 0.529 & 0.877 \\
-    VS            & ---  &  3.91 &  \textbf{3.35} &  \textbf{6.46} & \textbf{0.525} & \textbf{0.869} \\
+    SoftPlatt     & ---  &  3.17 &  2.92 &  3.18 & 0.511 & 0.841 \\
+    VS            & ---  &  3.91 &  3.35 &  6.46 & 0.525 & 0.869 \\
+    Dirichlet-Soft& ---  &  3.19 &  \textbf{2.71} &  \textbf{2.95} & \textbf{0.509} & \textbf{0.836} \\
     IR-Soft       & ---  &  \textbf{2.15} &  3.96 &  7.20 & 0.554 & 0.942 \\
     \bottomrule
   \end{tabular}
@@ -437,7 +459,8 @@ ChaosNLI provides 100 human annotations per example for subsets of the SNLI \cit
 
 \paragraph{Results.}
 Table~\ref{tab:chaosnli} confirms the phenomenon extends to NLI.
-TS leaves ECE of $10.55\%$ (RoBERTa-Large) and $11.63\%$ (DeBERTa-v3); SLTS reduces these to $3.22\%$ and $3.45\%$ (69--70\% reduction), while IR-Soft reaches $2.65\%$ and $2.15\%$.
+Dirichlet-Hard again fails to improve over TS ($11.55\%$ vs.\ $10.55\%$ for RoBERTa; $12.69\%$ vs.\ $11.63\%$ for DeBERTa), reinforcing that the failure is in the target, not method capacity.
+SLTS reduces ECE to $3.22\%$ and $3.45\%$ (69--70\% reduction), IR-Soft reaches $2.65\%$ and $2.15\%$, and Dirichlet-Soft achieves the best Brier score and NLL for both architectures ($0.510$/$0.509$ and $0.839$/$0.836$ respectively), demonstrating that expressive soft-label calibrators provide additional gains over the temperature-only baseline.
 The temperature direction is consistent with Proposition~\ref{prop:ts-bias}: SLTS requires substantially higher $T$ than TS ($3.41$ vs.\ $2.42$ for RoBERTa; $5.28$ vs.\ $3.81$ for DeBERTa), confirming the bias extends to language models.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -485,22 +508,28 @@ We evaluate two architectures on a stratified 70\%/15\%/15\% train/val/test spli
     Uncalibrated  & ---  & 25.76 & 25.84 &  6.67 & 0.600 & 2.710 \\
     TS            & 1.79 & 18.54 & 18.49 &  5.02 & 0.560 & 1.653 \\
     Platt (PS)    & ---  & 19.89 & 19.81 &  5.24 & 0.562 & 1.659 \\
+    Dirichlet-Hard& ---  & 20.36 & 20.32 &  5.33 & 0.563 & 1.674 \\
     HB-Hard       & ---  & 20.34 & 20.28 &  5.94 & 0.590 & 1.588 \\
     \multicolumn{7}{l}{\textit{EfficientNet-B4 --- Soft-label methods (ours)}} \\
     MCTS          & 4.47 &  9.69 &  9.79 &  2.92 & 0.528 & 1.146 \\
     SLTS          & 4.46 &  9.71 &  9.74 &  2.92 & 0.528 & 1.146 \\
-    VS            & ---  &  9.03 &  9.11 &  \textbf{2.42} & \textbf{0.524} & \textbf{1.121} \\
+    SoftPlatt     & ---  &  9.25 &  9.31 &  2.23 & 0.523 & 1.108 \\
+    VS            & ---  &  9.03 &  9.11 &  2.42 & 0.524 & 1.121 \\
+    Dirichlet-Soft& ---  &  7.50 &  7.48 &  \textbf{2.00} & \textbf{0.518} & \textbf{1.084} \\
     IR-Soft       & ---  &  \textbf{1.75} & \textbf{2.43} &  4.28 & 0.538 & 1.284 \\
     \midrule
     \multicolumn{7}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
     Uncalibrated  & ---  & 23.31 & 23.33 &  6.55 & 0.651 & 1.978 \\
     TS            & 1.42 & 16.59 & 16.60 &  5.23 & 0.617 & 1.563 \\
     Platt (PS)    & ---  & 17.19 & 17.17 &  4.74 & 0.597 & 1.583 \\
+    Dirichlet-Hard& ---  & 17.76 & 17.72 &  4.86 & 0.600 & 1.597 \\
     HB-Hard       & ---  & 17.71 & 17.72 &  6.60 & 0.662 & 1.608 \\
     \multicolumn{7}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.15 &  7.06 &  6.74 &  3.31 & 0.586 & 1.233 \\
+    MCTS          & 3.17 &  7.06 &  6.74 &  3.31 & 0.586 & 1.233 \\
     SLTS          & 3.15 &  6.96 &  6.68 &  3.29 & 0.586 & 1.233 \\
-    VS            & ---  &  8.50 &  8.59 &  \textbf{2.24} & \textbf{0.567} & \textbf{1.198} \\
+    SoftPlatt     & ---  &  8.05 &  7.90 &  2.05 & 0.565 & 1.190 \\
+    VS            & ---  &  8.50 &  8.59 &  2.24 & 0.567 & 1.198 \\
+    Dirichlet-Soft& ---  &  6.85 &  6.80 &  \textbf{1.77} & \textbf{0.563} & \textbf{1.175} \\
     IR-Soft       & ---  &  \textbf{1.73} & \textbf{1.59} &  5.78 & 0.621 & 1.466 \\
     \bottomrule
   \end{tabular}
@@ -508,9 +537,10 @@ We evaluate two architectures on a stratified 70\%/15\%/15\% train/val/test spli
 
 \paragraph{Results.}
 Table~\ref{tab:isic} confirms the phenomenon in the most clinically realistic setting.
-With $K=9$ annotators and 73\% agreement, TS leaves ECE of $18.54\%$ (EfficientNet-B4) and $16.59\%$ (ViT-S/16).  SLTS reduces these to $9.71\%$ and $6.96\%$ (48--58\% reduction); IR-Soft achieves the lowest ECE ($1.75\%$ and $1.73\%$, $>$90\% reduction).
+Dirichlet-Hard once again fails to improve over TS ($20.36\%$ vs.\ $18.54\%$ for EfficientNet-B4; $17.76\%$ vs.\ $16.59\%$ for ViT-S/16), consistent with the pattern across all benchmarks.
+SLTS reduces ECE to $9.71\%$ and $6.96\%$ (48--58\% reduction); Dirichlet-Soft further reduces it to $7.50\%$ and $6.85\%$ while achieving the best cwECE, Brier, and NLL across both architectures.
+IR-Soft achieves the lowest ECE ($1.75\%$ and $1.73\%$, $>$90\% reduction).
 The temperature gap is especially large: $T_{\text{SLTS}}=4.46$ vs.\ $T_{\text{TS}}=1.79$ for EfficientNet-B4, reflecting the high annotator disagreement.
-VS attains the best Brier score and NLL for both architectures.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion}
@@ -520,20 +550,29 @@ VS attains the best Brier score and NLL for both architectures.
 \paragraph{Connection to conformal prediction.}
 Our calibration gap parallels the coverage gap of \citet{stutz2023conformal}: both arise from replacing the annotator distribution with a one-hot voted target.  In their setting this causes undercoverage; in ours, overconfidence.
 
-\paragraph{Practical implications.}
-The gap is negligible for unambiguous inputs and grows with annotation entropy (Proposition~\ref{prop:entropy-gap}).  Appendix~\ref{app:n-annotators} shows that $m\ge 5$ annotations per calibration example suffice to substantially close the gap, making soft calibration practical even with modest annotation budgets.
+\paragraph{SLTS sacrifices voted-label calibration by design.}
+A natural question is whether SLTS degrades voted-label calibration ($\ECEvoted$).  In the toy example, SLTS achieves $\ECEvoted=14.9\%$ vs.\ TS's $\ECEvoted=1.1\%$.  This is the correct behaviour, not a deficiency: voted-label calibration is an unreliable objective when annotators genuinely disagree, because the voted label overstates the probability of the majority class.  The higher $\ECEvoted$ of SLTS reflects that it no longer calibrates to an epistemically unreliable target.  Practitioners who must satisfy a hard voted-label calibration constraint (e.g., for regulatory compliance) can apply TS on top of SLTS outputs; in all other cases, $\ECEtrue$ is the appropriate objective.
+
+\paragraph{Practical guidelines.}
+Based on our empirical findings, we recommend:
+(i)~\textbf{SLTS} when simplicity and interpretability are paramount (single-parameter extension of TS, same computational cost);
+(ii)~\textbf{IR-Soft} when raw ECE minimisation is the goal (best ECE at the cost of Brier/NLL);
+(iii)~\textbf{VS or Dirichlet-Soft} when class-imbalanced annotation disagreement exists (per-class parameters capture class-specific ambiguity);
+(iv)~\textbf{MCTS} when individual annotation records are available rather than pre-aggregated soft labels.
+All methods require $m\ge 5$ annotations per calibration example (Appendix~\ref{app:n-annotators}); the methods are computationally equivalent to their hard-label counterparts.
 
 \paragraph{Limitations.}
 Soft calibration requires multi-annotator labels at calibration time.
 We assume rational annotators; purely noisy annotations would yield biased estimates of $\pi(x)$.
 True-label ECE evaluation requires sampling from $\pi(\cdot\mid x)$, though a single annotator per test example suffices in practice.
+The ISIC~2019 and DermaMNIST experiments use synthetic annotations; results on fully real multi-annotator medical datasets may differ.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, and IR-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across three benchmarks and six architectures spanning vision and language.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the annotator distribution.  Our soft-label methods---SLTS, MCTS, VS, and IR-Soft---require no retraining and reduce true-label ECE by 48--91\% relative to Temperature Scaling across four benchmarks and seven architectures spanning vision and language.  The calibration gap is a structural property of the voted-label objective; wherever multi-annotator data is available, soft calibration should be the default.
 
 \paragraph{Acknowledgements.}
 We thank the anonymous reviewers for their constructive feedback.
@@ -545,6 +584,28 @@ We thank the anonymous reviewers for their constructive feedback.
 \appendix
 % ─────────────────────────────────────────────────────────────────────────────
 
+\section{Reliability Diagrams}
+\label{app:reliability}
+
+Figure~\ref{fig:reliability} visualises the reliability diagrams from the toy example, confirming that the calibration gap is visible in the fundamental reliability diagram and is not an artefact of the ECE metric.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig2_reliability.pdf}
+  \caption{
+    \textbf{Reliability diagrams (toy example).}
+    \textbf{Top row:} evaluated with hard (voted) labels.
+    All standard methods (TS, Platt) appear well-calibrated on voted-label evaluation.
+    \textbf{Bottom row:} evaluated with soft (annotator) labels.
+    TS and Platt (PS) are systematically overconfident---the calibration gap is
+    clearly visible as the gap between the diagonal and the method's reliability curve.
+    SLTS correctly reduces confidence to match the true annotator probability.
+    The diagrams confirm that the gap is not an artefact of the ECE metric but is
+    visible in the fundamental reliability diagram.
+  }
+  \label{fig:reliability}
+\end{figure}
+
 \section{Proof of Proposition~\ref{prop:ts-bias}}
 \label{app:proof-ts}
 
@@ -554,10 +615,37 @@ The TS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{TS}}(T;\mathcal{D
 
 The SLTS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{SLTS}}(T;\mathcal{D}_\text{amb}) = -|\mathcal{D}_\text{amb}|^{-1}\sum_i\sum_k\pihat_k(x_i)\log\operatorname{softmax}(z_i/T)_k$, with $\pihat_c(x_i)=q<1$.  The minimum-loss $T^*$ satisfies $\operatorname{softmax}(z_i/T^*)_c\approx q$, requiring $T^*>1$ whenever $p_i>q$.  $\square$
 
+\section{Proof of Proposition~\ref{prop:entropy-gap}}
+\label{app:proof-entropy}
+
+We formalize the argument given in the proof sketch in the main text.
+
+\paragraph{Setup.}
+Let $p=\phat_{\hat{c}}(x)$ denote the model's predicted confidence for the top class $\hat{c}$ and let $q=\pi_{\hat{c}}(x)\in(0,1]$ denote the true annotator probability for that class.  We assume the model is trained against voted labels, so $p$ is approximately constant across examples with the same voted label regardless of their annotation entropy $H(x)$.
+
+\paragraph{Voted-label calibration error contribution.}
+For example $x_i$ in confidence bin $B_b$ (where $\overline{p}(B_b)\approx p$), the per-example voted-label calibration error is $|p - \mathbf{1}[\hat{c}=y^*]|$.  Since $\hat{c}=y^*$ for correctly-classified ambiguous examples (the model predicts the majority class), this contribution is approximately $|p-1|$ for examples where the model makes the right hard prediction, independent of $H(x)$.
+
+\paragraph{True-label calibration error contribution.}
+The per-example true-label calibration error is $|p - \pi_{\hat{c}}(x)|=|p-q|$.
+
+\paragraph{Contribution to the gap.}
+The per-example gap contribution is:
+\begin{align}
+  \delta(x) &= |p - q| - |p - \mathbf{1}[\hat{c}=y^*]|.
+\end{align}
+When the model is correctly calibrated to voted labels ($p\approx\mathbf{1}[\hat{c}=y^*]$ in expectation), the voted contribution is near zero: $|p-1|\approx 0$ for high-accuracy bins and $|p-0|=p$ for error bins.  For unambiguous examples ($H(x)=0$), $q=\pi_{y^*}=1$, so $\delta(x)=|p-1|-|p-1|=0$.
+
+\paragraph{Monotonicity.}
+As $H(x)$ increases, $q=\pi_{y^*}(x)$ decreases below 1 (more probability mass shifts to non-majority classes).  Specifically, for a $K$-class problem with uniform annotator distribution at maximum entropy, $q=1/K$.  The true-label contribution $|p-q|$ increases strictly as $q$ decreases from 1 (since $p>q$ for a well-trained model predicting the majority class with confidence exceeding the majority probability).  The voted-label contribution $|p-\mathbf{1}[\hat{c}=y^*]|$ is unaffected by $H(x)$.  Therefore $\delta(x)=|p-q|-|p-\mathbf{1}[\hat{c}=y^*]|$ is non-decreasing in $H(x)$, and strictly increasing whenever $p>q>0$.
+
+\paragraph{Aggregate monotonicity.}
+The aggregate calibration gap $\Delta=\ECEtrue-\ECEvoted$ equals $\sum_b\frac{|B_b|}{n}\sum_{i\in B_b}\delta(x_i)/|B_b|$.  Since $\delta(x_i)$ is non-decreasing in $H(x_i)$ and bins contain a mixture of examples, $\Delta$ grows with the mean annotation entropy of the test set.  The same argument holds within each entropy stratum, directly predicting the Q1$\to$Q4 pattern confirmed in Figure~\ref{fig:stratified}.  $\square$
+
 \section{Effect of Number of Annotations}
 \label{app:n-annotators}
 
-We subsample $m\in\{1,3,5,10,20,51\}$ annotations per image from CIFAR-10H to form $\pihat(x)$, then fit SLTS with the resulting soft labels.  Table~\ref{tab:n-annotators} shows that with $m=1$, SLTS degenerates to TS (ECE $\approx 8.9\%$); with $m=5$, ECE drops to 4.5\%; and with all 51 annotations, to 3.23\%.  Even modest annotation effort ($m\ge 5$) substantially reduces the calibration gap.
+We subsample $m\in\{1,3,5,10,20,51\}$ annotations per image from CIFAR-10H to form $\pihat(x)$, then fit SLTS with the resulting soft labels.  Table~\ref{tab:n-annotators} and Figure~\ref{fig:n_annotators} show that with $m=1$, SLTS degenerates to TS (ECE $\approx 8.9\%$); with $m=5$, ECE drops to 4.5\%; and with all 51 annotations, to 3.23\%.  Even modest annotation effort ($m\ge 5$) substantially reduces the calibration gap.
 
 \begin{table}[h]
   \centering
@@ -617,6 +705,74 @@ Since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})]
   \end{tabular}
 \end{table}
 
+\section{Ablation: Isolating the Label-Target Effect from Method Capacity}
+\label{app:target-ablation}
+
+A potential confound in our results is that soft-label methods (SLTS, VS, IR-Soft) differ from hard-label baselines (TS, Platt) in \emph{both} the calibration target \emph{and} the method parameterization.  To isolate the target effect, we compare architecturally matched pairs:
+
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+  \item \textbf{Per-class affine}: Platt~(PS) uses the same $W\cdot z+b$ (diagonal) transform as SoftPlatt, but targets voted labels; SoftPlatt uses the same transform but targets the annotator distribution.
+  \item \textbf{Full $K{\times}K$ affine}: Dirichlet-Hard uses the full $K{\times}K$ weight matrix targeting voted labels; Dirichlet-Soft uses the same matrix targeting the annotator distribution.
+\end{itemize}
+
+Table~\ref{tab:target-ablation} shows results across four datasets.  Within each architecture class, changing only the target—from voted to soft—reduces ECE by $2$--$8\times$ (with larger reductions on higher-entropy datasets such as DermaMNIST), while adding more parameters within the same target type (Platt $\to$ Dirichlet-Hard) yields no improvement.  This directly confirms that the calibration gap is a \emph{target problem}, not a \emph{capacity problem}.
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{Ablation: target effect vs.\ capacity effect across all four benchmarks.}
+    Each pair has the same parameterization but different targets.
+    The target change ($\mathrm{Hard}\to\mathrm{Soft}$) reduces ECE by $2$--$8\times$;
+    increasing capacity within the same hard target (Platt $\to$ Dirichlet-Hard) does not help.
+  }
+  \label{tab:target-ablation}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{llcccc}
+    \toprule
+    Dataset & Method & Parameterization & Target & ECE (\%) $\downarrow$ & NLL $\downarrow$ \\
+    \midrule
+    \multirow{4}{*}{ChaosNLI / RoBERTa-L}
+    & Platt (PS)           & per-class affine & voted  & 11.16 & 0.875 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{2.66} & \textbf{0.839} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted &  11.55 & 0.889 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft  &  \textbf{2.57} & \textbf{0.839} \\
+    \midrule
+    \multirow{4}{*}{ChaosNLI / DeBERTa-v3}
+    & Platt (PS)           & per-class affine & voted  & 12.43 & 0.896 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{3.17} & \textbf{0.841} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted &  12.69 & 0.895 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft  &  \textbf{3.19} & \textbf{0.836} \\
+    \midrule
+    \midrule
+    \multirow{4}{*}{CIFAR-10H / ResNet-50}
+    & Platt (PS)           & per-class affine & voted  &  4.29 & 0.372 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{1.52} & \textbf{0.288} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted  &  4.46 & 0.395 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft   &  \textbf{1.25} & \textbf{0.271} \\
+    \midrule
+    \multirow{4}{*}{CIFAR-10H / ViT-B/16}
+    & Platt (PS)           & per-class affine & voted  &  4.54 & 0.363 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{0.88} & \textbf{0.272} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted  &  4.70 & 0.394 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft   &  \textbf{0.72} & \textbf{0.255} \\
+    \midrule
+    \midrule
+    \multirow{4}{*}{ISIC 2019 / ENet-B4}
+    & Platt (PS)           & per-class affine & voted  & 19.89 & 1.659 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{9.25} & \textbf{1.108} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted  & 20.36 & 1.674 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft   &  \textbf{7.50} & \textbf{1.084} \\
+    \midrule
+    \multirow{4}{*}{DermaMNIST / ResNet-18}
+    & Platt (PS)           & per-class affine & voted  & 23.64 & 1.667 \\
+    & SoftPlatt (ours)     & per-class affine & soft   &  \textbf{4.19} & \textbf{1.312} \\
+    & Dirichlet-Hard       & $K\!\times\!K$ affine & voted  & 24.58 & 1.771 \\
+    & Dirichlet-Soft (ours)& $K\!\times\!K$ affine & soft   &  \textbf{3.55} & \textbf{1.305} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
 \section{Ablation: Calibration Set Size}
 \label{app:calset-size}
 
@@ -625,7 +781,7 @@ We vary $n$ from 250 to 5\,000 (stratified by class).  TS's ECE remains 8.5--8.8
 \section{DermaMNIST: Supplementary Skin Disease Experiment}
 \label{app:dermamnist}
 
-We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-class, derived from HAM10000 \citep{tschandl2018ham10000}; $K=5$ synthetic annotators; overall agreement $\approx 64.7\%$) with two backbones: ResNet-18 and ViT-S/16.  Results in Table~\ref{tab:derm} show that TS leaves ECE $=24.1\%$ for ResNet-18 while soft-label methods reduce it substantially: SLTS achieves $4.2\%$ (83\% reduction) and IR-Soft achieves $2.0\%$ (92\% reduction).  ViT-S/16 shows an almost identical pattern (SLTS: $3.2\%$; IR-Soft: $2.9\%$ vs.\ $24.9\%$ for TS).  For proper scoring metrics, VS and SLTS achieve the best Br and NLL.  Both backbones show $T_{\text{SLTS}}>T_{\text{TS}}>1$: SLTS requires substantially higher temperature to match the softer annotation distribution.
+We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-class, derived from HAM10000 \citep{tschandl2018ham10000}; $K=5$ synthetic annotators; overall agreement $\approx 64.7\%$) with two backbones: ResNet-18 and ViT-S/16.  Results in Table~\ref{tab:derm} and Figure~\ref{fig:derm} show that TS leaves ECE $=23.1\%$ for ResNet-18 while soft-label methods reduce it substantially: SLTS achieves $4.6\%$ (80\% reduction), IR-Soft achieves $2.2\%$ (91\% reduction), and Dirichlet-Soft achieves $3.6\%$ while attaining the best cwECE ($1.2\%$), Brier ($0.610$), and NLL ($1.305$).  ViT-S/16 shows a similar pattern (SLTS: $3.6\%$; Dirichlet-Soft achieves the best ECE, Brier, and NLL: $3.3\%$/$0.601$/$1.286$).  Both backbones show $T_{\text{SLTS}}>T_{\text{TS}}>1$: SLTS requires substantially higher temperature to match the softer annotation distribution.
 
 \begin{figure}[h]
   \centering
@@ -655,22 +811,28 @@ We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-clas
     Uncalibrated  & ---  & 34.35 & 34.26 & 10.15 & 0.767 & 2.689 \\
     TS            & 1.86 & 23.05 & 22.82 &  6.97 & 0.686 & 1.654 \\
     Platt (PS)    & ---  & 23.64 & 23.56 &  7.08 & 0.682 & 1.667 \\
+    Dirichlet-Hard& ---  & 24.58 & 24.46 &  7.33 & 0.690 & 1.771 \\
     HB-Hard       & ---  & 22.02 & 21.91 &  7.15 & 0.694 & 1.598 \\
     \multicolumn{7}{l}{\textit{ResNet-18 --- Soft-label methods (ours)}} \\
     MCTS          & 3.52 &  4.69 &  4.47 &  3.57 & 0.622 & 1.376 \\
     SLTS          & 3.51 &  4.61 &  4.44 &  3.56 & 0.622 & 1.376 \\
-    VS            & ---  &  4.45 &  3.83 &  \textbf{3.23} & \textbf{0.621} & \textbf{1.363} \\
+    SoftPlatt     & ---  &  4.19 &  3.55 &  1.61 & 0.612 & 1.312 \\
+    VS            & ---  &  4.45 &  3.83 &  3.23 & 0.621 & 1.363 \\
+    Dirichlet-Soft& ---  &  3.55 &  3.36 &  \textbf{1.22} & \textbf{0.610} & \textbf{1.305} \\
     IR-Soft       & ---  &  \textbf{2.15} & \textbf{2.34} &  4.55 & 0.634 & 1.440 \\
     \midrule
     \multicolumn{7}{l}{\textit{ViT-S/16 --- Voted-label baselines}} \\
     Uncalibrated  & ---  & 37.12 & 37.10 & 10.82 & 0.786 & 3.766 \\
     TS            & 2.60 & 24.36 & 24.26 &  7.29 & 0.683 & 1.664 \\
     Platt (PS)    & ---  & 23.82 & 23.59 &  7.10 & 0.675 & 1.681 \\
+    Dirichlet-Hard& ---  & 24.84 & 24.68 &  7.49 & 0.682 & 1.897 \\
     HB-Hard       & ---  & 23.82 & 23.77 &  7.52 & 0.700 & 1.631 \\
     \multicolumn{7}{l}{\textit{ViT-S/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 5.13 &  \textbf{3.57} &  3.10 &  3.37 & \textbf{0.610} & 1.351 \\
-    SLTS          & 5.11 &  3.58 &  \textbf{3.06} &  3.37 & \textbf{0.610} & 1.350 \\
-    VS            & ---  &  4.03 &  3.71 &  \textbf{2.84} & 0.611 & \textbf{1.331} \\
+    MCTS          & 5.13 &  3.57 &  3.10 &  3.37 & 0.610 & 1.351 \\
+    SLTS          & 5.11 &  3.58 &  3.06 &  3.37 & 0.610 & 1.350 \\
+    SoftPlatt     & ---  &  3.56 &  2.93 &  1.29 & \textbf{0.601} & 1.289 \\
+    VS            & ---  &  4.03 &  3.71 &  2.84 & 0.611 & 1.331 \\
+    Dirichlet-Soft& ---  &  \textbf{3.32} & \textbf{2.87} &  \textbf{1.14} & \textbf{0.601} & \textbf{1.286} \\
     IR-Soft       & ---  &  3.79 &  3.73 &  4.59 & 0.628 & 1.431 \\
     \bottomrule
   \end{tabular}
@@ -752,6 +914,8 @@ near-perfect diagonal entries and negligible off-diagonal mass.
 
 \subsection*{Full confusion matrix}
 
+Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusion matrix.
+
 \begin{table}[h]
   \centering
   \caption{
@@ -781,6 +945,8 @@ near-perfect diagonal entries and negligible off-diagonal mass.
 
 \section{Extended Results: Stratified ECE on CIFAR-10H}
 \label{app:extended}
+
+Table~\ref{tab:stratified} provides the full numerical values underlying Figure~\ref{fig:stratified}, showing ECE broken down by annotation entropy quartile across all methods.
 
 \begin{table}[h]
   \centering

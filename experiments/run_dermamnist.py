@@ -40,7 +40,8 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calibration import (
-    TemperatureScaling, PlattScaling,
+    TemperatureScaling, PlattScaling, DirichletCalibration,
+    SoftPlattScaling,
     SoftLabelTS, MonteCarloTS, VectorScaling,
     HardHistogramBinning, SoftHistogramBinning, SoftIsotonicRegression,
     apply_parametric,
@@ -344,13 +345,16 @@ def main():
     ys_val_t = torch.tensor(ys_val,     dtype=torch.float32)
 
     # Parametric baselines (hard labels)
-    ts = TemperatureScaling().fit(logits_v, yh_val_t)
-    ps = PlattScaling(N_CLASSES).fit(logits_v, yh_val_t)
+    ts   = TemperatureScaling().fit(logits_v, yh_val_t)
+    ps   = PlattScaling(N_CLASSES).fit(logits_v, yh_val_t)
+    dc_h = DirichletCalibration(N_CLASSES).fit_hard(logits_v, yh_val_t)
 
     # Parametric — ours (soft labels)
     slts = SoftLabelTS().fit(logits_v, ys_val_t)
     mcts = MonteCarloTS(n_samples=50).fit(logits_v, ys_val_t)
     vs   = VectorScaling(N_CLASSES).fit(logits_v, ys_val_t)
+    dc_s = DirichletCalibration(N_CLASSES).fit_soft(logits_v, ys_val_t)
+    sp_s = SoftPlattScaling(N_CLASSES).fit(logits_v, ys_val_t)
 
     print(f"  T(TS)={ts.T:.4f}  {'← T<1: wrong direction!' if ts.T < 1 else ''}")
     print(f"  T(SLTS)={slts.T:.4f}  T(MCTS)={mcts.T:.4f}")
@@ -365,18 +369,24 @@ def main():
     # Parametric calibrators: get full probability vectors on test
     p_ts   = apply_parametric(ts,   logits_test)
     p_ps   = apply_parametric(ps,   logits_test)
+    p_dc_h = apply_parametric(dc_h, logits_test)
     p_slts = apply_parametric(slts, logits_test)
     p_mcts = apply_parametric(mcts, logits_test)
     p_vs   = apply_parametric(vs,   logits_test)
+    p_dc_s = apply_parametric(dc_s, logits_test)
+    p_sp_s = apply_parametric(sp_s, logits_test)
 
     main_results = []
     for name, p in [
-        ("Uncalibrated",   probs_test),
-        ("TS",             p_ts),
-        ("Platt (PS)",     p_ps),
-        ("MCTS (ours)",    p_mcts),
-        ("SLTS (ours)",    p_slts),
-        ("VS (ours)",      p_vs),
+        ("Uncalibrated",          probs_test),
+        ("TS",                    p_ts),
+        ("Platt (PS)",            p_ps),
+        ("Dirichlet-Hard",        p_dc_h),
+        ("MCTS (ours)",           p_mcts),
+        ("SLTS (ours)",           p_slts),
+        ("SoftPlatt (ours)",      p_sp_s),
+        ("VS (ours)",             p_vs),
+        ("Dirichlet-Soft (ours)", p_dc_s),
     ]:
         r = compute_all_metrics(p, test_labels, ys_test, n_bins=n_bins, name=name)
         r["temperature"] = (

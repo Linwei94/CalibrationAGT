@@ -142,6 +142,96 @@ class HardHistogramBinning:
         return cal, pred
 
 
+class SoftPlattScaling(nn.Module):
+    """
+    Soft-Label Platt / Matrix Scaling.
+
+    Same diagonal affine transform as PlattScaling (W·z + b with diagonal W),
+    but trained against the annotator distribution using KL divergence.
+    This is the natural soft-label extension of PlattScaling, and isolates
+    whether gains come from (a) soft targets alone or (b) parametric form.
+    """
+
+    def __init__(self, n_classes: int, lr: float = 0.01, n_epochs: int = 2000):
+        super().__init__()
+        self.W = nn.Parameter(torch.ones(n_classes))
+        self.b = nn.Parameter(torch.zeros(n_classes))
+        self._lr      = lr
+        self._n_epochs = n_epochs
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits * self.W + self.b
+
+    def fit(self, logits: torch.Tensor, labels_soft: torch.Tensor) -> "SoftPlattScaling":
+        opt = torch.optim.Adam([self.W, self.b], lr=self._lr, weight_decay=1e-4)
+
+        for _ in range(self._n_epochs):
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss  = -(labels_soft * log_p).sum(1).mean()
+            loss.backward()
+            opt.step()
+
+        return self
+
+
+class DirichletCalibration(nn.Module):
+    """
+    Dirichlet Calibration [Kull et al. NeurIPS 2019].
+
+    Learns a full affine transformation W·z + b of the logit vector, where W is a
+    full K×K matrix (not just diagonal as in Platt/Matrix Scaling).  More expressive
+    than Temperature Scaling or Platt Scaling.
+
+    fit_hard  — calibrate against hard (voted) labels  [Kull et al. baseline]
+    fit_soft  — calibrate against soft label distributions  [our extension]
+
+    Regularisation: L2 on off-diagonal entries of W to prevent overfitting on small
+    calibration sets (Kull et al. recommend mu=1e-3 for the ODIR variant).
+    """
+
+    def __init__(self, n_classes: int, lr: float = 0.01, n_epochs: int = 2000,
+                 l2: float = 1e-3):
+        super().__init__()
+        self.W = nn.Parameter(torch.eye(n_classes))   # K×K weight matrix
+        self.b = nn.Parameter(torch.zeros(n_classes))  # K-dim bias
+        self._lr      = lr
+        self._n_epochs = n_epochs
+        self._l2       = l2
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits @ self.W.T + self.b
+
+    def _fit(self, logits: torch.Tensor, targets: torch.Tensor,
+             soft: bool) -> "DirichletCalibration":
+        opt = torch.optim.Adam([self.W, self.b], lr=self._lr, weight_decay=1e-4)
+
+        for _ in range(self._n_epochs):
+            opt.zero_grad()
+            scaled = self(logits)
+            if soft:
+                log_p = torch.log_softmax(scaled, dim=1)
+                loss  = -(targets * log_p).sum(1).mean()
+            else:
+                loss  = nn.CrossEntropyLoss()(scaled, targets)
+            # Off-diagonal regularisation (ODIR)
+            K = self.W.shape[0]
+            off_diag = self.W * (1 - torch.eye(K, device=self.W.device))
+            loss = loss + self._l2 * (off_diag ** 2).sum()
+            loss.backward()
+            opt.step()
+
+        return self
+
+    def fit_hard(self, logits: torch.Tensor,
+                 labels_hard: torch.Tensor) -> "DirichletCalibration":
+        return self._fit(logits, labels_hard, soft=False)
+
+    def fit_soft(self, logits: torch.Tensor,
+                 labels_soft: torch.Tensor) -> "DirichletCalibration":
+        return self._fit(logits, labels_soft, soft=True)
+
+
 class SoftLabelTS(nn.Module):
     """
     Soft-Label Temperature Scaling (SLTS).
