@@ -187,22 +187,6 @@ Table~\ref{tab:toy} and Figure~\ref{fig:toy} show that the calibration gap is a 
   \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figs/fig2_reliability.pdf}
-  \caption{
-    \textbf{Reliability diagrams (toy example).}
-    \textbf{Top row:} evaluated with hard (voted) labels.
-    All standard methods (TS, Platt) appear well-calibrated on voted-label evaluation.
-    \textbf{Bottom row:} evaluated with soft (annotator) labels.
-    TS and Platt (PS) are systematically overconfident---the calibration gap is
-    clearly visible as the gap between the diagonal and the method's reliability curve.
-    SLTS correctly reduces confidence to match the true annotator probability.
-    The diagrams confirm that the gap is not an artefact of the ECE metric but is
-    visible in the fundamental reliability diagram.
-  }
-  \label{fig:reliability}
-\end{figure*}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Theory: Why Standard Calibration Fails}
@@ -345,7 +329,7 @@ Table~\ref{tab:all} (CIFAR-10H columns) reveals a consistent pattern across both
 Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16); crucially, Dirichlet-Hard---despite its $K\!\times\!K$ parameter matrix---does not improve over TS ($4.46\%$ and $4.70\%$ respectively), confirming that the issue lies in the voted-label target, not the method's expressiveness.
 Soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE ($0.72\%$) on ResNet-50.
 Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
-Soft-label methods achieve higher $\ECEvoted$ than TS---correct behaviour reflecting a soft target; see Section~\ref{sec:discussion}.  The $\ECEvoted$--$\ECEtrue$ scatter is shown in Appendix~\ref{app:summary-scatter}; reliability diagrams are in Figure~\ref{fig:reliability}.
+Soft-label methods achieve higher $\ECEvoted$ than TS---correct behaviour reflecting a soft target; see Section~\ref{sec:discussion}.  The $\ECEvoted$--$\ECEtrue$ scatter is shown in Appendix~\ref{app:summary-scatter}.
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$).  For highly ambiguous inputs (Q4), TS degrades to $\approx18\%$ while SLTS maintains $\approx6\%$---a $3\times$ gap confirming Proposition~\ref{prop:entropy-gap}.
@@ -560,10 +544,6 @@ Figure~\ref{fig:summary} visualises $\ECEvoted$ vs.\ $\ECEtrue$ for all methods 
   \end{tabular}
 \end{table}
 
-\section{Reliability Diagrams}
-\label{app:reliability}
-
-Figure~\ref{fig:reliability} (Section~\ref{sec:toy}) visualises the reliability diagrams from the toy example, confirming that the calibration gap is visible in the fundamental reliability diagram and is not an artefact of the ECE metric.
 
 \section{Proof of Proposition~\ref{prop:ts-bias}}
 \label{app:proof-ts}
@@ -861,7 +841,7 @@ Tables~\ref{tab:cifar10h-full}--\ref{tab:chaosnli-full} give the complete per-da
   \centering
   \caption{
     \textbf{Full results on CIFAR-10H.}
-    $\ECEtrue$: true-label ECE; $\mathrm{Br}_t$/$\mathrm{NLL}_t$: true-label Brier score/NLL.
+    ECE/aECE/cwECE: true-label calibration errors; Br/NLL: true-label Brier score/NLL.
     Best per architecture in \textbf{bold}.
   }
   \label{tab:cifar10h-full}
@@ -869,8 +849,8 @@ Tables~\ref{tab:cifar10h-full}--\ref{tab:chaosnli-full} give the complete per-da
   \setlength{\tabcolsep}{3pt}
   \begin{tabular}{lcccccc}
     \toprule
-    Method & $T$ & $\ECEtrue$ (\%) $\downarrow$ & $\aECE_t$ (\%) $\downarrow$ & $\cwECE_t$ (\%) $\downarrow$
-           & $\mathrm{Br}_t$ $\downarrow$ & $\mathrm{NLL}_t$ $\downarrow$ \\
+    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
+           & Br $\downarrow$ & NLL $\downarrow$ \\
     \midrule
     \multicolumn{7}{l}{\textit{ResNet-50 --- Voted-label baselines}} \\
     Uncalibrated  & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692 \\

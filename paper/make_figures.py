@@ -320,13 +320,10 @@ print("Generating fig1_toy …")
 
 X_te = X[idx_te]
 
-fig = plt.figure(figsize=(16, 4.5))
-gs = GridSpec(1, 5, figure=fig,
-              hspace=0.0, wspace=0.38,
-              left=0.05, right=0.97, top=0.88, bottom=0.14)
+fig, axs = plt.subplots(1, 5, figsize=(16, 5.0), constrained_layout=True)
 
 # ── Panel (a): data distribution ──────────────────────────────────────────
-ax_data = fig.add_subplot(gs[0, 0])
+ax_data = axs[0]
 
 # Unambiguous classes
 for c, col, lbl in [(0, PAL["uncal"], "Class 0"), (2, PAL["slts"], "Class 2")]:
@@ -384,7 +381,7 @@ panels = [
 ]
 
 for col, (title, p, col_c, tgt, do_arrow, T, fc, ec) in enumerate(panels):
-    ax = fig.add_subplot(gs[0, col + 1])
+    ax = axs[col + 1]
     rel_ax(ax, p, tgt, title, col_c, arrow=do_arrow)
     if T is not None:
         direction = f"< 1  ↑conf" if T < 1 else f"> 1  ↓conf"
@@ -393,7 +390,7 @@ for col, (title, p, col_c, tgt, do_arrow, T, fc, ec) in enumerate(panels):
                 bbox=dict(boxstyle="round", fc=fc, ec=ec, alpha=0.93, lw=1.2))
 
 # ── Panel (e): stratified ECE (right-most column) ─────────────────────────
-ax_strat = fig.add_subplot(gs[0, 4])
+ax_strat = axs[4]
 
 # Stratified: show all hard-label baselines fail on ambiguous cluster
 strat_methods = [
@@ -424,54 +421,11 @@ ax_strat.legend(fontsize=9)
 ax_strat.grid(True, axis="y", alpha=0.25)
 ax_strat.set_ylim(0, max_val * 1.65)
 
-fig.suptitle(
-    "Toy Example — Calibration under Ambiguous Ground Truth",
-    fontsize=14, fontweight="bold",
-)
-
 plt.savefig(OUT / "fig1_toy.pdf", bbox_inches="tight")
 plt.savefig(OUT / "fig1_toy.png", dpi=180, bbox_inches="tight")
 plt.close(); print("  → fig1_toy.pdf")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Fig 2: Reliability diagrams — 2 rows × 4 methods
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Generating fig2_reliability …")
-four = [
-    ("Uncalibrated", p_raw,  PAL["uncal"], None),
-    ("TS",           p_ts,   PAL["ts"],    T_ts),
-    ("Platt (PS)",   p_ps,   PAL["ps"],    None),
-    ("SLTS (ours)",  p_slts, PAL["slts"],  T_slts),
-]
-fig, axes = plt.subplots(2, 4, figsize=(14, 7), constrained_layout=True)
-fig.suptitle("Reliability Diagrams: Hard-label (top) vs. Soft-label (bottom)",
-             fontweight="bold", fontsize=14)
-for col, (nm, p, col_c, T) in enumerate(four):
-    for row, (targets, row_lbl, use_arrow) in enumerate([
-        (yh1hot, "Voted labels", False),
-        (ys_te,  "Soft labels", nm == "TS"),
-    ]):
-        ax = axes[row][col]
-        rel_ax(ax, p, targets, f"{nm}" if row == 0 else "", col_c, arrow=use_arrow)
-        if T is not None and row == 0:
-            lbl = "T<1, up-conf" if T < 1 else "T>1, down-conf"
-            ax.set_title(f"{nm}\n[T={T:.3f}, {lbl}]",
-                         fontweight="bold", color=PAL["gap"] if T<1 else "black")
-        if col == 0:
-            ax.set_ylabel(f"{row_lbl}\n\nAvg. label prob.", fontsize=9)
-        else:
-            ax.set_ylabel("")
-
-# Shading legend
-axes[0][3].legend(handles=[
-    mpatches.Patch(color=PAL["gap_over"],  alpha=0.7, label="Overconfident"),
-    mpatches.Patch(color=PAL["gap_under"], alpha=0.7, label="Underconfident"),
-], loc="upper left")
-
-plt.savefig(OUT/"fig2_reliability.pdf", bbox_inches="tight")
-plt.close(); print("  → fig2_reliability.pdf")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
