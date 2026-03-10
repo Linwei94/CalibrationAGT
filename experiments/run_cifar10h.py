@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from calibration import (
     TemperatureScaling, PlattScaling, DirichletCalibration,
     SoftLabelTS, MonteCarloTS, VectorScaling, SoftPlattScaling,
+    PseudoSoftLabelTS, LabelSmoothTS,
     HardHistogramBinning, SoftHistogramBinning, SoftIsotonicRegression,
     apply_parametric,
 )
@@ -302,8 +303,14 @@ def run_experiment(args):
     dc_s  = DirichletCalibration(N_CLASSES).fit_soft(logits_cal, ys_cal_t)
     sp_s  = SoftPlattScaling(N_CLASSES).fit(logits_cal, ys_cal_t)
 
+    # Annotation-free — ours (hard labels only; targets ECE_true)
+    pslts = PseudoSoftLabelTS().fit(logits_cal, yh_cal_t)
+    ls_ts = LabelSmoothTS().fit(logits_cal, yh_cal_t)
+
     print(f"  T (SLTS): {slts.T:.4f}")
     print(f"  T (MCTS): {mcts.T:.4f}")
+    print(f"  T (PSLTS): {pslts.T:.4f}  (annotation-free)")
+    print(f"  T (LS-TS): {ls_ts.T:.4f}  (annotation-free, global eps)")
 
     # Non-parametric — baseline (hard labels)
     hb_hard = HardHistogramBinning(n_bins=n_bins).fit(probs_cal, yh_cal)
@@ -322,9 +329,11 @@ def run_experiment(args):
     p_mcts = apply_parametric(mcts, logits_all[idx_te])
     p_vs   = apply_parametric(vs,   logits_all[idx_te])
 
-    p_dc_h = apply_parametric(dc_h,  logits_all[idx_te])
-    p_dc_s = apply_parametric(dc_s,  logits_all[idx_te])
-    p_sp_s = apply_parametric(sp_s,  logits_all[idx_te])
+    p_dc_h  = apply_parametric(dc_h,  logits_all[idx_te])
+    p_dc_s  = apply_parametric(dc_s,  logits_all[idx_te])
+    p_sp_s  = apply_parametric(sp_s,  logits_all[idx_te])
+    p_pslts = apply_parametric(pslts, logits_all[idx_te])
+    p_ls_ts = apply_parametric(ls_ts, logits_all[idx_te])
 
     main_results = []
     for name, p in [
@@ -332,6 +341,8 @@ def run_experiment(args):
         ("TS",                  p_ts),
         ("Platt (PS)",          p_ps),
         ("Dirichlet-Hard",      p_dc_h),
+        ("LabelSmooth-TS",      p_ls_ts),
+        ("PSLTS (ours)",        p_pslts),
         ("MCTS (ours)",         p_mcts),
         ("SLTS (ours)",         p_slts),
         ("VS (ours)",           p_vs),
@@ -340,9 +351,11 @@ def run_experiment(args):
     ]:
         r = compute_all_metrics(p, yh_te, ys_te, n_bins=n_bins, name=name)
         r["temperature"] = (
-            ts.T   if name == "TS"          else
-            mcts.T if "MCTS" in name        else
-            slts.T if "SLTS" in name        else None
+            ts.T    if name == "TS"               else
+            mcts.T  if "MCTS" in name             else
+            pslts.T if "PSLTS" in name            else
+            slts.T  if "SLTS" in name             else
+            ls_ts.T if "LabelSmooth" in name      else None
         )
         main_results.append(r)
 
@@ -396,9 +409,11 @@ def run_experiment(args):
         "main_results":   main_results,
         "strat_results":  strat_results,
         "quant_results":  quant_results,
-        "ts_temperature":   ts.T,
-        "slts_temperature": slts.T,
-        "mcts_temperature": mcts.T,
+        "ts_temperature":    ts.T,
+        "slts_temperature":  slts.T,
+        "mcts_temperature":  mcts.T,
+        "pslts_temperature": pslts.T,
+        "ls_ts_temperature": ls_ts.T,
         "test_accuracy":  acc,
         "n_cal":          int(len(idx_cal)),
         "n_test":         int(len(idx_te)),

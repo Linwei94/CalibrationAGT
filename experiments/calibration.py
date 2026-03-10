@@ -3,14 +3,16 @@ Calibration methods for the ambiguous ground truth setting.
 
 Methods
 -------
-  TemperatureScaling  (TS)   — NLL vs. hard (voted) labels          [Guo et al. 2017]
-  PlattScaling        (PS)   — matrix scaling (W,b) vs. hard labels [Platt 1999 / Kull 2019]
-  SoftLabelTS         (SLTS) — KL(π(x) ‖ softmax(z/T))             [ours]
-  MonteCarloTS        (MCTS) — sample individual annotations → NLL  [ours, cf. Stutz 2023]
-  VectorScaling       (VS)   — per-class temperatures, soft labels  [ours]
-  HardHistogramBinning(HB-H) — non-parametric, hard accuracy targets[Zadrozny & Elkan 2001]
-  SoftHistogramBinning(HB-S) — non-parametric, soft targets         [ours]
-  SoftIsotonicReg     (IR)   — isotonic regression, soft targets    [ours]
+  TemperatureScaling  (TS)    — NLL vs. hard (voted) labels          [Guo et al. 2017]
+  PlattScaling        (PS)    — matrix scaling (W,b) vs. hard labels [Platt 1999 / Kull 2019]
+  SoftLabelTS         (SLTS)  — KL(π(x) ‖ softmax(z/T))             [ours]
+  MonteCarloTS        (MCTS)  — sample individual annotations → NLL  [ours, cf. Stutz 2023]
+  VectorScaling       (VS)    — per-class temperatures, soft labels  [ours]
+  PseudoSoftLabelTS   (PSLTS) — annotation-free; ε_i=1-f_i[y*]      [ours]
+  LabelSmoothTS       (LS-TS) — global label smoothing baseline      [ours]
+  HardHistogramBinning(HB-H)  — non-parametric, hard accuracy targets[Zadrozny & Elkan 2001]
+  SoftHistogramBinning(HB-S)  — non-parametric, soft targets         [ours]
+  SoftIsotonicReg     (IR)    — isotonic regression, soft targets    [ours]
 """
 
 import numpy as np
@@ -262,6 +264,135 @@ class SoftLabelTS(nn.Module):
             opt.zero_grad()
             log_p = torch.log_softmax(self(logits), dim=1)
             loss  = -(labels_soft * log_p).sum(1).mean()
+            loss.backward()
+            return loss
+
+        opt.step(closure)
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
+class PseudoSoftLabelTS(nn.Module):
+    """
+    Pseudo-Soft Label Temperature Scaling (PSLTS).
+
+    Annotation-free calibration that targets ECE_true using only voted labels.
+    Constructs per-example pseudo soft labels from model confidence:
+
+        ε_i  = 1 − f_i[y*]         (disagreement proxy: 1 minus voted-class confidence)
+        π̂_i = f_i[y*]·e_{y*} + (1−f_i[y*])·(1/K)   (smooth toward uniform)
+
+    Then optimises T via KL(π̂_i ‖ softmax(z_i/T)).
+
+    Provable: T*_PSLTS > T*_TS  (pseudo-label is softer than one-hot)
+    Annotation-free: uses only model logits and voted labels.
+    """
+
+    def __init__(self, init_T: float = 1.5):
+        super().__init__()
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    @staticmethod
+    def make_pseudo_labels(logits: torch.Tensor,
+                           labels_hard: torch.Tensor) -> torch.Tensor:
+        """
+        Build pseudo soft labels from model logits and voted labels.
+
+        Parameters
+        ----------
+        logits      : (N, K)
+        labels_hard : (N,)  integer class labels
+
+        Returns
+        -------
+        pi_hat : (N, K)  pseudo soft label distribution
+        """
+        with torch.no_grad():
+            K   = logits.shape[1]
+            f   = torch.softmax(logits, dim=1)                    # (N, K)
+            conf = f[torch.arange(len(labels_hard)), labels_hard] # (N,) f_i[y*]
+            yh  = torch.zeros_like(f)
+            yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)         # one-hot
+            eps = (1.0 - conf).clamp(0, 1)                        # ε_i in [0,1]
+            pi_hat = (1 - eps).unsqueeze(1) * yh + (eps / K).unsqueeze(1)
+        return pi_hat
+
+    def fit(self, logits: torch.Tensor,
+            labels_hard: torch.Tensor) -> "PseudoSoftLabelTS":
+        """
+        Parameters
+        ----------
+        logits      : (N, K)
+        labels_hard : (N,)  integer voted class labels
+        """
+        pi_hat = self.make_pseudo_labels(logits, labels_hard)
+
+        opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                  tolerance_grad=1e-9, tolerance_change=1e-11)
+
+        def closure():
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss  = -(pi_hat * log_p).sum(1).mean()
+            loss.backward()
+            return loss
+
+        opt.step(closure)
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
+class LabelSmoothTS(nn.Module):
+    """
+    Label-Smooth Temperature Scaling (LS-TS).
+
+    Non-adaptive baseline: uses a global ε = mean(1 − f_i[y*]) for all examples.
+
+        π̂_i = (1−ε)·e_{y*} + ε/K
+
+    Serves as an ablation for PSLTS: same average smoothing but non-adaptive.
+    """
+
+    def __init__(self, init_T: float = 1.5):
+        super().__init__()
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    @staticmethod
+    def make_pseudo_labels(logits: torch.Tensor,
+                           labels_hard: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            K    = logits.shape[1]
+            f    = torch.softmax(logits, dim=1)
+            conf = f[torch.arange(len(labels_hard)), labels_hard]
+            eps  = (1.0 - conf).mean().item()                     # global ε
+            yh   = torch.zeros_like(f)
+            yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)
+            pi_hat = (1 - eps) * yh + (eps / K)
+        return pi_hat
+
+    def fit(self, logits: torch.Tensor,
+            labels_hard: torch.Tensor) -> "LabelSmoothTS":
+        pi_hat = self.make_pseudo_labels(logits, labels_hard)
+
+        opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                  tolerance_grad=1e-9, tolerance_change=1e-11)
+
+        def closure():
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss  = -(pi_hat * log_p).sum(1).mean()
             loss.backward()
             return loss
 

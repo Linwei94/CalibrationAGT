@@ -43,6 +43,7 @@ from calibration import (
     TemperatureScaling, PlattScaling, DirichletCalibration,
     SoftPlattScaling,
     SoftLabelTS, MonteCarloTS, VectorScaling,
+    PseudoSoftLabelTS, LabelSmoothTS,
     HardHistogramBinning, SoftHistogramBinning, SoftIsotonicRegression,
     apply_parametric,
 )
@@ -356,8 +357,13 @@ def main():
     dc_s = DirichletCalibration(N_CLASSES).fit_soft(logits_v, ys_val_t)
     sp_s = SoftPlattScaling(N_CLASSES).fit(logits_v, ys_val_t)
 
+    # Annotation-free — ours (hard labels only; targets ECE_true)
+    pslts = PseudoSoftLabelTS().fit(logits_v, yh_val_t)
+    ls_ts = LabelSmoothTS().fit(logits_v, yh_val_t)
+
     print(f"  T(TS)={ts.T:.4f}  {'← T<1: wrong direction!' if ts.T < 1 else ''}")
     print(f"  T(SLTS)={slts.T:.4f}  T(MCTS)={mcts.T:.4f}")
+    print(f"  T(PSLTS)={pslts.T:.4f}  T(LS-TS)={ls_ts.T:.4f}  (annotation-free)")
 
     # Non-parametric baselines (hard and soft)
     hb_hard = HardHistogramBinning(n_bins=n_bins).fit(probs_val, val_labels)
@@ -373,8 +379,10 @@ def main():
     p_slts = apply_parametric(slts, logits_test)
     p_mcts = apply_parametric(mcts, logits_test)
     p_vs   = apply_parametric(vs,   logits_test)
-    p_dc_s = apply_parametric(dc_s, logits_test)
-    p_sp_s = apply_parametric(sp_s, logits_test)
+    p_dc_s  = apply_parametric(dc_s,  logits_test)
+    p_sp_s  = apply_parametric(sp_s,  logits_test)
+    p_pslts = apply_parametric(pslts, logits_test)
+    p_ls_ts = apply_parametric(ls_ts, logits_test)
 
     main_results = []
     for name, p in [
@@ -382,6 +390,8 @@ def main():
         ("TS",                    p_ts),
         ("Platt (PS)",            p_ps),
         ("Dirichlet-Hard",        p_dc_h),
+        ("LabelSmooth-TS",        p_ls_ts),
+        ("PSLTS (ours)",          p_pslts),
         ("MCTS (ours)",           p_mcts),
         ("SLTS (ours)",           p_slts),
         ("SoftPlatt (ours)",      p_sp_s),
@@ -390,9 +400,11 @@ def main():
     ]:
         r = compute_all_metrics(p, test_labels, ys_test, n_bins=n_bins, name=name)
         r["temperature"] = (
-            float(ts.T)   if name == "TS"          else
-            float(mcts.T) if "MCTS" in name        else
-            float(slts.T) if "SLTS" in name        else None
+            float(ts.T)    if name == "TS"               else
+            float(mcts.T)  if "MCTS" in name             else
+            float(pslts.T) if "PSLTS" in name            else
+            float(slts.T)  if "SLTS" in name             else
+            float(ls_ts.T) if "LabelSmooth" in name      else None
         )
         main_results.append(r)
 
@@ -440,9 +452,11 @@ def main():
         "n_annotators":     args.n_annotators,
         "main_results":     main_results,
         "quant_results":    quant_results,
-        "ts_temperature":   float(ts.T),
-        "slts_temperature": float(slts.T),
-        "mcts_temperature": float(mcts.T),
+        "ts_temperature":    float(ts.T),
+        "slts_temperature":  float(slts.T),
+        "mcts_temperature":  float(mcts.T),
+        "pslts_temperature": float(pslts.T),
+        "ls_ts_temperature": float(ls_ts.T),
         "val_accuracy":     float(val_acc),
         "test_accuracy":    float(test_acc),
         "n_val":            int(len(val_labels)),
