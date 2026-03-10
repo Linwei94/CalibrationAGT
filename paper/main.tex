@@ -156,8 +156,7 @@ A 3-class 2D Gaussian dataset: class~0 is always labeled~0 ($\pi_0=1$); class~1 
     \textbf{(b)} TS against voted labels: appears well-calibrated ($\ECEvoted=1.1\%$).
     \textbf{(c)} TS against true labels: large calibration gap ($\ECEtrue=9.1\%$, $\Delta=+8.0$ pp).
     \textbf{(d)} Platt scaling against true labels: also fails ($\ECEtrue=8.3\%$), confirming the gap is independent of method capacity.
-    \textbf{(e)} ECE-Voted (hatched) vs.\ ECE-True (solid) for all voted-label baselines and SLTS (ours, separated by dashed line).  Hard-label methods leave $\ECEtrue\approx10$--$11\%$ with $\Delta>0$; SLTS inverts the gap ($\Delta<0$), confirming the bottleneck is the voted-label target.
-    \textbf{(f)} Stratified $\ECEtrue$: the gap is concentrated in the ambiguous cluster and persists for all voted-label methods.
+    \textbf{(e)} Stratified $\ECEtrue$: the calibration gap is concentrated in the ambiguous cluster for all voted-label methods; see Table~\ref{tab:toy} for the full ECE-Voted vs.\ ECE-True breakdown.
   }
   \label{fig:toy}
 \end{figure}

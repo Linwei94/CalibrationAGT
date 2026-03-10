@@ -320,11 +320,10 @@ print("Generating fig1_toy …")
 
 X_te = X[idx_te]
 
-fig = plt.figure(figsize=(14, 8.8))
-gs = GridSpec(2, 4, figure=fig,
-              height_ratios=[1.45, 0.72],
-              hspace=0.58, wspace=0.42,
-              left=0.06, right=0.97, top=0.91, bottom=0.08)
+fig = plt.figure(figsize=(16, 4.5))
+gs = GridSpec(1, 5, figure=fig,
+              hspace=0.0, wspace=0.38,
+              left=0.05, right=0.97, top=0.88, bottom=0.14)
 
 # ── Panel (a): data distribution ──────────────────────────────────────────
 ax_data = fig.add_subplot(gs[0, 0])
@@ -393,58 +392,8 @@ for col, (title, p, col_c, tgt, do_arrow, T, fc, ec) in enumerate(panels):
                 transform=ax.transAxes, ha="right", va="bottom", fontsize=8.2,
                 bbox=dict(boxstyle="round", fc=fc, ec=ec, alpha=0.93, lw=1.2))
 
-# ── Row 2: ECE summary (left 3 cols) + stratified bar (right col) ─────────
-ax_bar   = fig.add_subplot(gs[1, 0:3])
-ax_strat = fig.add_subplot(gs[1, 3])
-
-# methods list order: 0=Uncal, 1=TS, 2=Platt, 3=HB-Hard, 4=MCTS, 5=SLTS
-# Show hard-label baselines + SLTS for contrast; use sampled ECE-True
-idx_sel  = [0, 1, 2, 3, 5]
-names5_b = [methods[i][0] for i in idx_sel]
-eh_b     = [ece_hard[i] * 100 for i in idx_sel]   # ECE-Voted
-es_b     = [ece_samp[i] * 100 for i in idx_sel]   # ECE-True (sampled)
-cols5    = [methods[i][2] for i in idx_sel]
-
-x, w = np.arange(5), 0.30
-bh = ax_bar.bar(x - w/2, eh_b, w, color=cols5, alpha=0.35,
-                edgecolor="black", lw=0.8, hatch="//")
-bs = ax_bar.bar(x + w/2, es_b, w, color=cols5, alpha=0.88,
-                edgecolor="black", lw=0.8)
-
-# Bar value labels
-for b in list(bh) + list(bs):
-    h = b.get_height()
-    ax_bar.text(b.get_x() + b.get_width()/2, h + 0.18,
-                f"{h:.1f}", ha="center", va="bottom", fontsize=8)
-
-# Delta annotation as plain text above each bar pair — no diagonal arrows
-for i in range(5):
-    delta   = es_b[i] - eh_b[i]
-    col_ann = "#cc3311" if delta > 0 else "#228833"
-    sign    = "+" if delta >= 0 else ""
-    y_annot = max(eh_b[i], es_b[i]) + 1.6
-    ax_bar.text(x[i], y_annot,
-                f"$\\Delta$={sign}{delta:.1f}",
-                ha="center", va="bottom", fontsize=9,
-                color=col_ann, fontweight="bold")
-
-# Visual separator: baselines | ours
-ax_bar.axvline(x=3.5, color="gray", lw=1.1, ls="--", alpha=0.5)
-
-ax_bar.set_xticks(x)
-ax_bar.set_xticklabels(names5_b, fontsize=11)
-ax_bar.set_ylabel("ECE (%)")
-ax_bar.set_title(
-    "(e) ECE-Voted vs. ECE-True: hard-label methods widen the gap",
-    fontweight="bold")
-ax_bar.grid(True, axis="y", alpha=0.25)
-ax_bar.set_ylim(0, max(max(eh_b), max(es_b)) * 1.75)
-ax_bar.legend(handles=[
-    mpatches.Patch(facecolor="gray", alpha=0.35, hatch="//",
-                   label="ECE-Voted"),
-    mpatches.Patch(facecolor="gray", alpha=0.88,
-                   label="ECE-True (sampled)"),
-], fontsize=9.5, loc="upper left")
+# ── Panel (e): stratified ECE (right-most column) ─────────────────────────
+ax_strat = fig.add_subplot(gs[0, 4])
 
 # Stratified: show all hard-label baselines fail on ambiguous cluster
 strat_methods = [
@@ -470,7 +419,7 @@ for i, (nm, p_m, col_c) in enumerate(strat_methods):
 ax_strat.set_xticks(x2)
 ax_strat.set_xticklabels(["Ambiguous\nsamples", "Clear\nsamples"], fontsize=10)
 ax_strat.set_ylabel("ECE-Soft (%)")
-ax_strat.set_title("(f) ECE-Soft by\nambiguity", fontweight="bold")
+ax_strat.set_title("(e) ECE-Soft by\nambiguity", fontweight="bold")
 ax_strat.legend(fontsize=9)
 ax_strat.grid(True, axis="y", alpha=0.25)
 ax_strat.set_ylim(0, max_val * 1.65)
