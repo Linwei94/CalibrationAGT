@@ -264,7 +264,7 @@ We evaluate on three main benchmarks with multi-annotator data, each with two ba
 We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \citep{guo2017calibration}; (iii)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \citep{platt1999probabilistic,kull2019beyond}; (iv)~\textbf{Dirichlet-Hard}: Dirichlet calibration \citep{kull2019beyond} with the full $K\times K$ weight matrix and bias, calibrated against voted labels---the most expressive standard post-hoc calibrator; (v)~\textbf{HB-Hard}: equal-width Histogram Binning \citep{zadrozny2001obtaining} with voted labels.
 
 \paragraph{Metrics.}
-All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  We use $\ECEtrue$ (sampled) rather than $\mathrm{ECE}_{\text{soft}}$ (direct KL from $\pihat$) because it mirrors the evaluation protocol a practitioner faces when only one label is observed at test time; the Brier score and NLL directly measure distributional alignment with $\pihat$ and serve as complementary soft metrics.  After Table~\ref{tab:main} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
+All metrics are evaluated against true labels $\tilde{y}\sim\pi(\cdot\mid x)$: $\ECEtrue$ (averaged over 100 draws; $B=15$ equal-width bins), adaptive ECE ($\aECE_t$; equal-mass bins, same draws), classwise ECE ($\cwECE_t$; per-class ECE averaged over $K$ classes \citep{kull2019beyond}), Brier score ($\mathrm{Br}_t$), and NLL ($\mathrm{NLL}_t$).  We use $\ECEtrue$ (sampled) rather than $\mathrm{ECE}_{\text{soft}}$ (direct KL from $\pihat$) because it mirrors the evaluation protocol a practitioner faces when only one label is observed at test time; the Brier score and NLL directly measure distributional alignment with $\pihat$ and serve as complementary soft metrics.  After Table~\ref{tab:all} we abbreviate these as ECE, aECE, cwECE, Br, and NLL.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{CIFAR-10H}
@@ -276,59 +276,59 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
 \textbf{ResNet-50} \citep{he2016deep} pretrained on ImageNet-1k, fine-tuned for 30 epochs (AdamW, cosine annealing), achieving 97.3\% top-1 accuracy.
 \textbf{ViT-B/16} \citep{dosovitskiy2021image} pretrained on ImageNet-21k, fine-tuned with the same protocol, achieving 98.1\% top-1 accuracy.
 
-\begin{table}[t]
+\begin{table*}[t]
   \centering
   \caption{
-    \textbf{Main results on CIFAR-10H.}
-    $\ECEtrue$: true-label ECE; $\mathrm{Br}_t$/$\mathrm{NLL}_t$: true-label Brier score/NLL.
-    Soft-label methods achieve substantially better true-label calibration across both architectures.
-    Best per architecture in \textbf{bold}.
+    \textbf{Main results across all four benchmarks.}
+    ECE (\%): true-label ECE ($\ECEtrue$, $\downarrow$); Br: true-label Brier score ($\mathrm{Br}_t$, $\downarrow$).
+    Top block: voted-label baselines; bottom block: soft-label methods (ours).
+    \textbf{Bold}: best per dataset/architecture.
+    Full results (aECE, cwECE, NLL) in Appendix~\ref{app:extended}.
   }
-  \label{tab:main}
-  \footnotesize
-  \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{lcccccc}
+  \label{tab:all}
+  \scriptsize
+  \setlength{\tabcolsep}{2.2pt}
+  \renewcommand{\arraystretch}{0.97}
+  \begin{tabular}{l rr rr rr rr rr rr rr rr}
     \toprule
-    Method & $T$ & $\ECEtrue$ (\%) $\downarrow$ & $\aECE_t$ (\%) $\downarrow$ & $\cwECE_t$ (\%) $\downarrow$
-           & $\mathrm{Br}_t$ $\downarrow$ & $\mathrm{NLL}_t$ $\downarrow$ \\
+    & \multicolumn{4}{c}{\textbf{CIFAR-10H}}
+    & \multicolumn{4}{c}{\textbf{ChaosNLI}}
+    & \multicolumn{4}{c}{\textbf{ISIC 2019}}
+    & \multicolumn{4}{c}{\textbf{DermaMNIST}} \\
+    \cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
+    Method
+    & \multicolumn{2}{c}{ResNet-50} & \multicolumn{2}{c}{ViT-B/16}
+    & \multicolumn{2}{c}{RoBERTa-L} & \multicolumn{2}{c}{DeBERTa}
+    & \multicolumn{2}{c}{ENet-B4}   & \multicolumn{2}{c}{ViT-S/16}
+    & \multicolumn{2}{c}{ResNet-18} & \multicolumn{2}{c}{ViT-S/16} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+    \cmidrule(lr){10-11}\cmidrule(lr){12-13}\cmidrule(lr){14-15}\cmidrule(lr){16-17}
+    & ECE & Br & ECE & Br
+    & ECE & Br & ECE & Br
+    & ECE & Br & ECE & Br
+    & ECE & Br & ECE & Br \\
     \midrule
-    \multicolumn{7}{l}{\textit{ResNet-50 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692 \\
-    TS            & 2.03 &  4.29 &  4.25 &  0.91 & 0.112 & 0.363 \\
-    Platt (PS)    & ---  &  4.29 &  4.23 &  0.91 & 0.112 & 0.372 \\
-    Dirichlet-Hard& ---  &  4.46 &  4.44 &  0.95 & 0.114 & 0.395 \\
-    HB-Hard       & ---  &  7.44 &  7.34 &  7.97 & 0.516 & 10.40$^\dagger$ \\
-    \multicolumn{7}{l}{\textit{ResNet-50 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
-    SLTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
-    SoftPlatt     & ---  &  1.52 &  1.31 &  \textbf{0.35} & 0.110 & 0.288 \\
-    VS            & ---  &  1.35 &  1.26 &  0.39 & \textbf{0.109} & 0.289 \\
-    Dirichlet-Soft& ---  &  1.25 &  1.06 &  \textbf{0.35} & \textbf{0.109} & \textbf{0.271} \\
-    IR-Soft       & ---  &  \textbf{0.72} & \textbf{0.83} &  0.45 & 0.115 & 0.340 \\
+    Uncal.     &  4.97 & .120 &  4.99 & .111 & 27.79 & .650 & 35.97 & .743 & 25.76 & .600 & 23.31 & .651 & 34.35 & .767 & 37.12 & .786 \\
+    TS         &  4.29 & .112 &  4.48 & .106 & 10.55 & .537 & 11.63 & .549 & 18.54 & .560 & 16.59 & .617 & 23.05 & .686 & 24.36 & .683 \\
+    Platt      &  4.29 & .112 &  4.54 & .105 & 11.16 & .530 & 12.43 & .539 & 19.89 & .562 & 17.19 & .597 & 23.64 & .682 & 23.82 & .675 \\
+    Dir.-Hard  &  4.46 & .114 &  4.70 & .107 & 11.55 & .535 & 12.69 & .539 & 20.36 & .563 & 17.76 & .600 & 24.58 & .690 & 24.84 & .682 \\
+    HB-Hard    &  7.44 & .516 &  6.55 & .388 &  8.37 & .562 & 10.75 & .574 & 20.34 & .590 & 17.71 & .662 & 22.02 & .694 & 23.82 & .700 \\
     \midrule
-    \multicolumn{7}{l}{\textit{ViT-B/16 --- Voted-label baselines}} \\
-    Uncalibrated  & ---  &  4.99 &  5.36 &  1.06 & 0.111 & 0.678 \\
-    TS            & 2.04 &  4.48 &  4.40 &  0.93 & 0.106 & 0.346 \\
-    Platt (PS)    & ---  &  4.54 &  4.38 &  0.93 & 0.105 & 0.363 \\
-    Dirichlet-Hard& ---  &  4.70 &  4.62 &  0.97 & 0.107 & 0.394 \\
-    HB-Hard       & ---  &  6.55 &  6.44 &  5.84 & 0.388 &  7.37$^\dagger$ \\
-    \multicolumn{7}{l}{\textit{ViT-B/16 --- Soft-label methods (ours)}} \\
-    MCTS          & 3.07 &  0.85 &  0.57 &  0.39 & 0.102 & 0.278 \\
-    SLTS          & 3.07 &  0.85 &  0.56 &  0.39 & 0.102 & 0.278 \\
-    SoftPlatt     & ---  &  0.88 &  0.47 &  \textbf{0.24} & 0.101 & 0.272 \\
-    VS            & ---  &  0.92 &  0.50 &  0.32 & 0.101 & 0.274 \\
-    Dirichlet-Soft& ---  &  \textbf{0.72} & \textbf{0.41} &  0.25 & \textbf{0.100} & \textbf{0.255} \\
-    IR-Soft       & ---  &  0.91 &  0.61 &  0.43 & 0.105 & 0.321 \\
+    MCTS       &  1.51 & .110 &  0.85 & .102 &  3.23 & .520 &  3.49 & .529 &  9.69 & .528 &  7.06 & .586 &  4.69 & .622 &  3.57 & .610 \\
+    SLTS       &  1.51 & .110 &  0.85 & .102 &  3.22 & .520 &  3.45 & .529 &  9.71 & .528 &  6.96 & .586 &  4.61 & .622 &  3.58 & .610 \\
+    SoftPlatt  &  1.52 & .110 &  0.88 & .101 &  2.66 & \textbf{.509} &  3.17 & .511 &  9.25 & .523 &  8.05 & .565 &  4.19 & .612 &  3.56 & \textbf{.601} \\
+    VS         &  1.35 & \textbf{.109} &  0.92 & .101 &  3.46 & .518 &  3.91 & .525 &  9.03 & .524 &  8.50 & .567 &  4.45 & .621 &  4.03 & .611 \\
+    Dir.-Soft  &  1.25 & \textbf{.109} &  \textbf{0.72} & \textbf{.100} &  \textbf{2.57} & .510 &  3.19 & \textbf{.509} &  7.50 & \textbf{.518} &  6.85 & \textbf{.563} &  3.55 & \textbf{.610} &  \textbf{3.32} & \textbf{.601} \\
+    IR-Soft    &  \textbf{0.72} & .115 &  0.91 & .105 &  2.65 & .549 &  \textbf{2.15} & .554 &  \textbf{1.75} & .538 &  \textbf{1.73} & .621 &  \textbf{2.15} & .634 &  3.79 & .628 \\
     \bottomrule
-    \multicolumn{7}{l}{\footnotesize $^\dagger$ HB assigns $(1-c)/(K{-}1)$ to non-predicted classes; large NLL/Br reflects this for $K=10$.} \\
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Main results.}
-Table~\ref{tab:main} reveals a consistent pattern across both backbones.
+Table~\ref{tab:all} (CIFAR-10H columns) reveals a consistent pattern across both backbones.
 Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16); crucially, Dirichlet-Hard---despite its $K\!\times\!K$ parameter matrix---does not improve over TS ($4.46\%$ and $4.70\%$ respectively), confirming that the issue lies in the voted-label target, not the method's expressiveness.
 Soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE ($0.72\%$) on ResNet-50.
-Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score and NLL across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
+Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
 Soft-label methods achieve higher $\ECEvoted$ than TS---correct behaviour reflecting a soft target; see Section~\ref{sec:discussion}.  The $\ECEvoted$--$\ECEtrue$ scatter is shown in Appendix~\ref{app:summary-scatter}; reliability diagrams appear in Appendix~\ref{app:reliability}.
 
 \paragraph{Stratified analysis.}
@@ -350,55 +350,9 @@ Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unamb
 
 We next evaluate on \textbf{ChaosNLI} \citep{nie2020what}: 100 human annotations per example for the combined SNLI+MNLI subset ($n=3{,}113$), split 50/50 stratified by voted label.  We evaluate \textbf{RoBERTa-Large} \citep{liu2019roberta} and \textbf{DeBERTa-v3-base} \citep{he2021debertav3}, both fine-tuned on MNLI.
 
-\begin{table}[t]
-  \centering
-  \caption{
-    \textbf{Main results on ChaosNLI} (combined SNLI+MNLI, 100 annotators per example).
-    ECE/Br/NLL are all true-label metrics (see Table~\ref{tab:main}).
-    Soft-label methods achieve substantially better calibration for both NLI architectures.
-  }
-  \label{tab:chaosnli}
-  \footnotesize
-  \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{lcccccc}
-    \toprule
-    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
-           & Br $\downarrow$ & NLL $\downarrow$ \\
-    \midrule
-    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 27.79 & 27.77 & 18.61 & 0.650 & 1.384 \\
-    TS            & 2.42 & 10.55 & 10.38 &  7.30 & 0.537 & 0.886 \\
-    Platt (PS)    & ---  & 11.16 & 10.92 &  7.28 & 0.530 & 0.875 \\
-    Dirichlet-Hard& ---  & 11.55 & 11.40 &  7.64 & 0.535 & 0.889 \\
-    HB-Hard       & ---  &  8.37 &  8.22 &  8.33 & 0.562 & 0.963 \\
-    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Soft-label methods (ours)}} \\
-    MCTS          & 3.41 &  3.23 &  2.59 &  4.62 & 0.520 & 0.862 \\
-    SLTS          & 3.41 &  3.22 &  2.59 &  4.62 & 0.520 & 0.862 \\
-    SoftPlatt     & ---  &  2.66 &  2.32 &  2.43 & 0.509 & 0.839 \\
-    VS            & ---  &  3.46 &  3.07 &  5.13 & 0.518 & 0.857 \\
-    Dirichlet-Soft& ---  &  \textbf{2.57} & \textbf{1.71} &  \textbf{2.03} & \textbf{0.510} & \textbf{0.839} \\
-    IR-Soft       & ---  &  2.65 &  2.59 &  6.24 & 0.549 & 0.934 \\
-    \midrule
-    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Voted-label baselines}} \\
-    Uncalibrated  & ---  & 35.97 & 35.92 & 24.02 & 0.743 & 2.148 \\
-    TS            & 3.81 & 11.63 & 11.57 &  8.48 & 0.549 & 0.900 \\
-    Platt (PS)    & ---  & 12.43 & 12.36 &  8.43 & 0.539 & 0.896 \\
-    Dirichlet-Hard& ---  & 12.69 & 12.63 &  8.84 & 0.539 & 0.895 \\
-    HB-Hard       & ---  & 10.75 & 10.26 &  9.71 & 0.574 & 0.989 \\
-    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Soft-label methods (ours)}} \\
-    MCTS          & 5.27 &  3.49 &  3.38 &  6.56 & 0.529 & 0.876 \\
-    SLTS          & 5.28 &  3.45 &  3.36 &  6.53 & 0.529 & 0.877 \\
-    SoftPlatt     & ---  &  3.17 &  2.92 &  3.18 & 0.511 & 0.841 \\
-    VS            & ---  &  3.91 &  3.35 &  6.46 & 0.525 & 0.869 \\
-    Dirichlet-Soft& ---  &  3.19 &  \textbf{2.71} &  \textbf{2.95} & \textbf{0.509} & \textbf{0.836} \\
-    IR-Soft       & ---  &  \textbf{2.15} &  3.96 &  7.20 & 0.554 & 0.942 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
 \paragraph{Results.}
-Table~\ref{tab:chaosnli} confirms the phenomenon in NLI: Dirichlet-Hard fails to improve over TS ($11.55\%$ vs.\ $10.55\%$; $12.69\%$ vs.\ $11.63\%$), the target is the bottleneck.
-SLTS reduces ECE to $3.22\%$/$3.45\%$ (69--70\%), Dirichlet-Soft achieves the best Brier and NLL for both architectures.
+Table~\ref{tab:all} (ChaosNLI columns) confirms the phenomenon in NLI: Dirichlet-Hard fails to improve over TS ($11.55\%$ vs.\ $10.55\%$; $12.69\%$ vs.\ $11.63\%$), the target is the bottleneck.
+SLTS reduces ECE to $3.22\%$/$3.45\%$ (69--70\%), Dirichlet-Soft achieves the best Brier for both architectures.
 SLTS requires substantially higher $T$ than TS ($3.41$ vs.\ $2.42$; $5.28$ vs.\ $3.81$), confirming the bias extends to language models (Proposition~\ref{prop:ts-bias}).
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -406,13 +360,13 @@ SLTS requires substantially higher $T$ than TS ($3.41$ vs.\ $2.42$; $5.28$ vs.\ 
 \label{sec:isic2019}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 skin conditions, ${\approx}25{,}000$ images) with $K=9$ synthetic dermatologist annotations per image, generated from a clinically calibrated $8\times8$ confusion matrix (Appendix~\ref{app:isic-confusion}) matching \citet{liu2020deep}: overall agreement 73\%.  We evaluate \textbf{EfficientNet-B4} \citep{tan2019efficientnet} and \textbf{ViT-S/16} \citep{dosovitskiy2021image} on a stratified 70/15/15 split.  Full numerical results and figures are in Appendix~\ref{app:isic-results} (Table~\ref{tab:isic}).
+We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 skin conditions, ${\approx}25{,}000$ images) with $K=9$ synthetic dermatologist annotations per image, generated from a clinically calibrated $8\times8$ confusion matrix (Appendix~\ref{app:isic-confusion}) matching \citet{liu2020deep}: overall agreement 73\%.  We evaluate \textbf{EfficientNet-B4} \citep{tan2019efficientnet} and \textbf{ViT-S/16} \citep{dosovitskiy2021image} on a stratified 70/15/15 split.  Full results with aECE/cwECE/NLL are in Appendix~\ref{app:isic-results}.
 
 \paragraph{Results.}
-The pattern from Table~\ref{tab:main} replicates in the most clinically realistic setting (Table~\ref{tab:isic}).
+Table~\ref{tab:all} (ISIC 2019 columns) shows the same pattern in the medical domain.
 Dirichlet-Hard fails to improve over TS ($20.36\%$ vs.\ $18.54\%$ for EfficientNet-B4; $17.76\%$ vs.\ $16.59\%$ for ViT-S/16), confirming the target bottleneck.
-SLTS achieves 48--58\% ECE reduction ($9.71\%$/$6.96\%$); IR-Soft exceeds 90\% reduction ($1.75\%$/$1.73\%$); Dirichlet-Soft achieves the best cwECE, Brier, and NLL.
-The modest SLTS reduction on EfficientNet-B4 (48\%) despite the large temperature gap ($T=4.46$ vs.\ $1.79$) illustrates that class-asymmetric disagreement (MEL/NV dominates; DF/VL are easy) requires per-class methods---VS and Dirichlet-Soft capture this; IR-Soft's non-parametric nature sidesteps it.
+SLTS achieves 48--58\% ECE reduction ($9.71\%$/$6.96\%$); IR-Soft exceeds 90\% reduction ($1.75\%$/$1.73\%$); Dirichlet-Soft achieves the best Brier.
+The modest SLTS reduction on EfficientNet-B4 (48\%) despite the large temperature gap ($T=4.46$ vs.\ $1.79$) illustrates that class-asymmetric disagreement requires per-class methods---VS and Dirichlet-Soft capture this; IR-Soft's non-parametric nature sidesteps it.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion}
@@ -475,7 +429,7 @@ Figure~\ref{fig:summary} visualises $\ECEvoted$ vs.\ $\ECEtrue$ for all methods 
   \centering
   \caption{
     \textbf{ISIC 2019 results.}  $K=9$ synthetic annotators, overall agreement $73\%$.
-    ECE/Br/NLL are all true-label metrics (see Table~\ref{tab:main}).
+    ECE/Br/NLL are all true-label metrics (see Table~\ref{tab:all}).
   }
   \label{tab:isic}
   \footnotesize
@@ -881,9 +835,104 @@ Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusio
   \end{tabular}
 \end{table}
 
-\section{Extended Results: Stratified ECE on CIFAR-10H}
+\section{Extended Results}
 \label{app:extended}
 
+Tables~\ref{tab:cifar10h-full}--\ref{tab:chaosnli-full} give the complete per-dataset results (T, ECE, aECE, cwECE, Br, NLL) that complement the compact Table~\ref{tab:all} in the main text.  Table~\ref{tab:stratified} provides the stratified ECE breakdown.
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{Full results on CIFAR-10H.}
+    $\ECEtrue$: true-label ECE; $\mathrm{Br}_t$/$\mathrm{NLL}_t$: true-label Brier score/NLL.
+    Best per architecture in \textbf{bold}.
+  }
+  \label{tab:cifar10h-full}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $T$ & $\ECEtrue$ (\%) $\downarrow$ & $\aECE_t$ (\%) $\downarrow$ & $\cwECE_t$ (\%) $\downarrow$
+           & $\mathrm{Br}_t$ $\downarrow$ & $\mathrm{NLL}_t$ $\downarrow$ \\
+    \midrule
+    \multicolumn{7}{l}{\textit{ResNet-50 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692 \\
+    TS            & 2.03 &  4.29 &  4.25 &  0.91 & 0.112 & 0.363 \\
+    Platt (PS)    & ---  &  4.29 &  4.23 &  0.91 & 0.112 & 0.372 \\
+    Dirichlet-Hard& ---  &  4.46 &  4.44 &  0.95 & 0.114 & 0.395 \\
+    HB-Hard       & ---  &  7.44 &  7.34 &  7.97 & 0.516 & 10.40$^\dagger$ \\
+    \multicolumn{7}{l}{\textit{ResNet-50 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
+    SLTS          & 3.18 &  1.51 &  1.39 &  0.45 & 0.110 & 0.293 \\
+    SoftPlatt     & ---  &  1.52 &  1.31 &  \textbf{0.35} & 0.110 & 0.288 \\
+    VS            & ---  &  1.35 &  1.26 &  0.39 & \textbf{0.109} & 0.289 \\
+    Dirichlet-Soft& ---  &  1.25 &  1.06 &  \textbf{0.35} & \textbf{0.109} & \textbf{0.271} \\
+    IR-Soft       & ---  &  \textbf{0.72} & \textbf{0.83} &  0.45 & 0.115 & 0.340 \\
+    \midrule
+    \multicolumn{7}{l}{\textit{ViT-B/16 --- Voted-label baselines}} \\
+    Uncalibrated  & ---  &  4.99 &  5.36 &  1.06 & 0.111 & 0.678 \\
+    TS            & 2.04 &  4.48 &  4.40 &  0.93 & 0.106 & 0.346 \\
+    Platt (PS)    & ---  &  4.54 &  4.38 &  0.93 & 0.105 & 0.363 \\
+    Dirichlet-Hard& ---  &  4.70 &  4.62 &  0.97 & 0.107 & 0.394 \\
+    HB-Hard       & ---  &  6.55 &  6.44 &  5.84 & 0.388 &  7.37$^\dagger$ \\
+    \multicolumn{7}{l}{\textit{ViT-B/16 --- Soft-label methods (ours)}} \\
+    MCTS          & 3.07 &  0.85 &  0.57 &  0.39 & 0.102 & 0.278 \\
+    SLTS          & 3.07 &  0.85 &  0.56 &  0.39 & 0.102 & 0.278 \\
+    SoftPlatt     & ---  &  0.88 &  0.47 &  \textbf{0.24} & 0.101 & 0.272 \\
+    VS            & ---  &  0.92 &  0.50 &  0.32 & 0.101 & 0.274 \\
+    Dirichlet-Soft& ---  &  \textbf{0.72} & \textbf{0.41} &  0.25 & \textbf{0.100} & \textbf{0.255} \\
+    IR-Soft       & ---  &  0.91 &  0.61 &  0.43 & 0.105 & 0.321 \\
+    \bottomrule
+    \multicolumn{7}{l}{\footnotesize $^\dagger$ HB assigns $(1-c)/(K{-}1)$ to non-predicted classes; large NLL/Br for $K=10$.} \\
+  \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{Full results on ChaosNLI} (combined SNLI+MNLI, 100 annotators per example).
+    Metrics as in Table~\ref{tab:cifar10h-full}.
+  }
+  \label{tab:chaosnli-full}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Method & $T$ & ECE (\%) $\downarrow$ & aECE (\%) $\downarrow$ & cwECE (\%) $\downarrow$
+           & Br $\downarrow$ & NLL $\downarrow$ \\
+    \midrule
+    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 27.79 & 27.77 & 18.61 & 0.650 & 1.384 \\
+    TS            & 2.42 & 10.55 & 10.38 &  7.30 & 0.537 & 0.886 \\
+    Platt (PS)    & ---  & 11.16 & 10.92 &  7.28 & 0.530 & 0.875 \\
+    Dirichlet-Hard& ---  & 11.55 & 11.40 &  7.64 & 0.535 & 0.889 \\
+    HB-Hard       & ---  &  8.37 &  8.22 &  8.33 & 0.562 & 0.963 \\
+    \multicolumn{7}{l}{\textit{RoBERTa-Large --- Soft-label methods (ours)}} \\
+    MCTS          & 3.41 &  3.23 &  2.59 &  4.62 & 0.520 & 0.862 \\
+    SLTS          & 3.41 &  3.22 &  2.59 &  4.62 & 0.520 & 0.862 \\
+    SoftPlatt     & ---  &  2.66 &  2.32 &  2.43 & \textbf{0.509} & \textbf{0.839} \\
+    VS            & ---  &  3.46 &  3.07 &  5.13 & 0.518 & 0.857 \\
+    Dirichlet-Soft& ---  &  \textbf{2.57} & \textbf{1.71} &  \textbf{2.03} & 0.510 & \textbf{0.839} \\
+    IR-Soft       & ---  &  2.65 &  2.59 &  6.24 & 0.549 & 0.934 \\
+    \midrule
+    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Voted-label baselines}} \\
+    Uncalibrated  & ---  & 35.97 & 35.92 & 24.02 & 0.743 & 2.148 \\
+    TS            & 3.81 & 11.63 & 11.57 &  8.48 & 0.549 & 0.900 \\
+    Platt (PS)    & ---  & 12.43 & 12.36 &  8.43 & 0.539 & 0.896 \\
+    Dirichlet-Hard& ---  & 12.69 & 12.63 &  8.84 & 0.539 & 0.895 \\
+    HB-Hard       & ---  & 10.75 & 10.26 &  9.71 & 0.574 & 0.989 \\
+    \multicolumn{7}{l}{\textit{DeBERTa-v3-base --- Soft-label methods (ours)}} \\
+    MCTS          & 5.27 &  3.49 &  3.38 &  6.56 & 0.529 & 0.876 \\
+    SLTS          & 5.28 &  3.45 &  3.36 &  6.53 & 0.529 & 0.877 \\
+    SoftPlatt     & ---  &  3.17 &  2.92 &  3.18 & 0.511 & 0.841 \\
+    VS            & ---  &  3.91 &  3.35 &  6.46 & 0.525 & 0.869 \\
+    Dirichlet-Soft& ---  &  3.19 &  \textbf{2.71} &  \textbf{2.95} & \textbf{0.509} & \textbf{0.836} \\
+    IR-Soft       & ---  &  \textbf{2.15} &  3.96 &  7.20 & 0.554 & 0.942 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\bigskip
 Table~\ref{tab:stratified} provides the full numerical values underlying Figure~\ref{fig:stratified}, showing ECE broken down by annotation entropy quartile across all methods.
 
 \begin{table}[h]
