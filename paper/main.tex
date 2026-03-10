@@ -374,7 +374,7 @@ Table~\ref{tab:main} reveals a consistent pattern across both backbones.
 Voted-label baselines leave substantial residual ECE (TS: $4.29\%$ for ResNet-50, $4.48\%$ for ViT-B/16); crucially, Dirichlet-Hard---despite its $K\!\times\!K$ parameter matrix---does not improve over TS ($4.46\%$ and $4.70\%$ respectively), confirming that the issue lies in the voted-label target, not the method's expressiveness.
 Soft-label methods close the gap decisively: SLTS reduces ECE to $1.51\%$ and $0.85\%$ respectively (65--81\% relative reduction), and IR-Soft achieves the lowest ECE ($0.72\%$) on ResNet-50.
 Dirichlet-Soft achieves the best ECE on ViT-B/16 ($0.72\%$) and the best Brier score and NLL across both architectures, confirming that the expressive $K\!\times\!K$ parameterization is beneficial when combined with a soft target.
-Figure~\ref{fig:summary} plots $\ECEvoted$ vs.\ $\ECEtrue$ for all methods, illustrating the gap between the two metrics.  Reliability diagrams for these methods are provided in Appendix~\ref{app:reliability}.
+Figure~\ref{fig:summary} plots $\ECEvoted$ vs.\ $\ECEtrue$ for all methods, illustrating the gap between the two metrics.  Reliability diagrams for these methods are provided in Appendix~\ref{app:reliability}.  As expected, soft-label methods achieve higher $\ECEvoted$ than TS (this is correct behaviour, not a deficiency; see Section~\ref{sec:discussion}).
 
 \paragraph{Stratified analysis.}
 Figure~\ref{fig:stratified} shows ECE by annotation entropy quartile.  For unambiguous inputs (Q1), all methods perform similarly (ECE $\approx 1$--$2\%$), since true-label calibration reduces to voted-label calibration when $\pi(\cdot\mid x)$ is one-hot.  For highly ambiguous inputs (Q4), TS degrades to ECE $\approx 18\%$ while SLTS maintains $\approx 6\%$—a $3\times$ gap, directly confirming Proposition~\ref{prop:entropy-gap}.
@@ -541,6 +541,7 @@ Dirichlet-Hard once again fails to improve over TS ($20.36\%$ vs.\ $18.54\%$ for
 SLTS reduces ECE to $9.71\%$ and $6.96\%$ (48--58\% reduction); Dirichlet-Soft further reduces it to $7.50\%$ and $6.85\%$ while achieving the best cwECE, Brier, and NLL across both architectures.
 IR-Soft achieves the lowest ECE ($1.75\%$ and $1.73\%$, $>$90\% reduction).
 The temperature gap is especially large: $T_{\text{SLTS}}=4.46$ vs.\ $T_{\text{TS}}=1.79$ for EfficientNet-B4, reflecting the high annotator disagreement.
+The relatively modest SLTS reduction on EfficientNet-B4 (48\%) despite the large temperature gap illustrates a structural limitation of single-parameter methods: when annotator disagreement is class-asymmetric (MEL/NV confusion dominates; DF/VASC are easy), a single temperature cannot simultaneously address all confusion pairs.  Class-wise methods (Dirichlet-Soft, VS) close this gap by allocating capacity per class, and IR-Soft's non-parametric nature side-steps it entirely.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion}
