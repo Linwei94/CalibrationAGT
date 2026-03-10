@@ -397,43 +397,53 @@ for col, (title, p, col_c, tgt, do_arrow, T, fc, ec) in enumerate(panels):
 ax_bar   = fig.add_subplot(gs[1, 0:3])
 ax_strat = fig.add_subplot(gs[1, 3])
 
-methods4 = [
-    ("Uncal",      p_raw, PAL["uncal"]),
-    ("TS",         p_ts,  PAL["ts"]),
-    ("Platt (PS)", p_ps,  PAL["ps"]),
-    ("HB-Hard",    p_hb,  PAL["hbh"]),
-]
-names4_b = [m[0] for m in methods4]
-eh_b = [ece_bins(m[1], yh1hot)[0] * 100 for m in methods4]
-es_b = [ece_bins(m[1], ys_te)[0]  * 100 for m in methods4]
-cols4 = [m[2] for m in methods4]
+# methods list order: 0=Uncal, 1=TS, 2=Platt, 3=HB-Hard, 4=MCTS, 5=SLTS
+# Show hard-label baselines + SLTS for contrast; use sampled ECE-True
+idx_sel  = [0, 1, 2, 3, 5]
+names5_b = [methods[i][0] for i in idx_sel]
+eh_b     = [ece_hard[i] * 100 for i in idx_sel]   # ECE-Voted
+es_b     = [ece_samp[i] * 100 for i in idx_sel]   # ECE-True (sampled)
+cols5    = [methods[i][2] for i in idx_sel]
 
-x, w = np.arange(4), 0.32
-bh = ax_bar.bar(x - w/2, eh_b, w, color=cols4, alpha=0.38,
+x, w = np.arange(5), 0.30
+bh = ax_bar.bar(x - w/2, eh_b, w, color=cols5, alpha=0.35,
                 edgecolor="black", lw=0.8, hatch="//")
-bs = ax_bar.bar(x + w/2, es_b, w, color=cols4, alpha=0.88,
+bs = ax_bar.bar(x + w/2, es_b, w, color=cols5, alpha=0.88,
                 edgecolor="black", lw=0.8)
-for b in list(bh) + list(bs):
-    ax_bar.text(b.get_x() + b.get_width()/2, b.get_height() + 0.10,
-                f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
 
-# annotate gap for each method
-for ts_i in range(len(methods4)):
-    ax_bar.annotate("", xy=(ts_i + w/2, es_b[ts_i]),
-                    xytext=(ts_i - w/2, eh_b[ts_i]),
-                    arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=1.5, alpha=0.7))
+# Bar value labels
+for b in list(bh) + list(bs):
+    h = b.get_height()
+    ax_bar.text(b.get_x() + b.get_width()/2, h + 0.18,
+                f"{h:.1f}", ha="center", va="bottom", fontsize=8)
+
+# Delta annotation as plain text above each bar pair — no diagonal arrows
+for i in range(5):
+    delta   = es_b[i] - eh_b[i]
+    col_ann = "#cc3311" if delta > 0 else "#228833"
+    sign    = "+" if delta >= 0 else ""
+    y_annot = max(eh_b[i], es_b[i]) + 1.6
+    ax_bar.text(x[i], y_annot,
+                f"$\\Delta$={sign}{delta:.1f}",
+                ha="center", va="bottom", fontsize=9,
+                color=col_ann, fontweight="bold")
+
+# Visual separator: baselines | ours
+ax_bar.axvline(x=3.5, color="gray", lw=1.1, ls="--", alpha=0.5)
 
 ax_bar.set_xticks(x)
-ax_bar.set_xticklabels(names4_b, fontsize=11)
+ax_bar.set_xticklabels(names5_b, fontsize=11)
 ax_bar.set_ylabel("ECE (%)")
-ax_bar.set_title("(e) All baselines: ECE-Voted vs. ECE-Soft", fontweight="bold")
+ax_bar.set_title(
+    "(e) ECE-Voted vs. ECE-True: hard-label methods widen the gap",
+    fontweight="bold")
 ax_bar.grid(True, axis="y", alpha=0.25)
-ax_bar.set_ylim(0, max(es_b) * 1.65)
+ax_bar.set_ylim(0, max(max(eh_b), max(es_b)) * 1.75)
 ax_bar.legend(handles=[
-    mpatches.Patch(facecolor="gray", alpha=0.38, hatch="//",
+    mpatches.Patch(facecolor="gray", alpha=0.35, hatch="//",
                    label="ECE-Voted"),
     mpatches.Patch(facecolor="gray", alpha=0.88,
-                   label="ECE-Soft"),
+                   label="ECE-True (sampled)"),
 ], fontsize=9.5, loc="upper left")
 
 # Stratified: show all hard-label baselines fail on ambiguous cluster
