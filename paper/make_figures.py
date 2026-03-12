@@ -1,12 +1,16 @@
 """
-Generate all paper figures from first principles.
+Legacy exploratory figure generator.
+
+This file predates the current manuscript framing in `main.tex` and still
+contains older exploratory plots using `ECE-Soft`.
+The current paper figures are maintained by the dedicated scripts in this
+folder together with `experiments/run_toy_example.py`.
 
 Uses the toy-example computation (runs in <10 s, no GPU needed) to produce
 publication-quality versions of every figure referenced in main.tex.
 
 Figures produced
 ----------------
-  figs/fig1_toy.pdf          — Toy-example reliability diagrams + ECE bars
   figs/fig2_reliability.pdf  — 2×4 reliability diagrams: Uncal/TS/Platt/SLTS
                                (Hard-label row + Soft-label row)
   figs/fig3_summary.pdf      — ECE-Voted vs ECE-Soft bar chart (all methods)
@@ -58,6 +62,7 @@ PAL = dict(
     uncal="#5A8FC2", ts="#E07040", ps="#B06090",
     mcts="#9B59B6", slts="#4CAF80", vs="#F39C12",
     hbh="#888888",  hbs="#1ABC9C",  ir="#34495E",
+    lsts="#8E44AD",
     gap="#C0392B",
     gap_over="#FFB3B3", gap_under="#C8F0C8",
 )
@@ -312,121 +317,6 @@ def rel_ax(ax, probs, targets, title, color, n_bins=12, arrow=False):
     return ece
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Fig 1: Toy example — data distribution + reliability diagrams
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Generating fig1_toy …")
-
-X_te = X[idx_te]
-
-fig, axs = plt.subplots(1, 5, figsize=(16, 5.0), constrained_layout=True)
-
-# ── Panel (a): data distribution ──────────────────────────────────────────
-ax_data = axs[0]
-
-# Unambiguous classes
-for c, col, lbl in [(0, PAL["uncal"], "Class 0"), (2, PAL["slts"], "Class 2")]:
-    m = yh_te == c
-    ax_data.scatter(X_te[m, 0], X_te[m, 1],
-                    c=col, alpha=0.42, s=7, label=lbl, rasterized=True, zorder=2)
-
-# Ambiguous class 1: split into 70% shown as "class 1" and 30% as "class 2"
-rng_vis = np.random.default_rng(99)
-amb_idx  = np.where(amb_te)[0]
-perm     = rng_vis.permutation(len(amb_idx))
-n30      = int(0.30 * len(amb_idx))
-idx70    = amb_idx[perm[n30:]]
-idx30    = amb_idx[perm[:n30]]
-ax_data.scatter(X_te[idx70, 0], X_te[idx70, 1],
-                c=PAL["ts"], alpha=0.48, s=7,
-                label="Class 1 (70% → label 1)", rasterized=True, zorder=3)
-ax_data.scatter(X_te[idx30, 0], X_te[idx30, 1],
-                c=PAL["slts"], alpha=0.55, s=9, marker="^",
-                label="Class 1 (30% → label 2)", rasterized=True, zorder=4)
-
-# Dashed ellipse highlighting ambiguous cluster
-from matplotlib.patches import Ellipse
-ell = Ellipse((0, 0), width=5.8, height=3.0, angle=0,
-              fill=False, lw=1.8, ls="--", color=PAL["ts"], zorder=5)
-ax_data.add_patch(ell)
-
-# Annotation
-ax_data.annotate(
-    "Ambiguous cluster\n"
-    "$\\hat{\\pi}(x) = [0,\\ 0.70,\\ 0.30]$\n"
-    "Voted label: always Class 1",
-    xy=(0.0, 1.5), xytext=(0.0, 4.0),
-    ha="center", fontsize=9,
-    arrowprops=dict(arrowstyle="->", color=PAL["ts"], lw=1.3),
-    bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow",
-              ec=PAL["ts"], alpha=0.93, lw=1.2),
-    zorder=6,
-)
-
-ax_data.set_xlabel("Feature $x_1$")
-ax_data.set_ylabel("Feature $x_2$")
-ax_data.set_title("(a) Data Distribution", fontweight="bold")
-ax_data.legend(loc="upper right", fontsize=8, markerscale=1.4,
-               handlelength=1.0, borderpad=0.4, labelspacing=0.3)
-ax_data.grid(True, alpha=0.18)
-ax_data.set_xlim(-6.8, 6.8)
-ax_data.set_ylim(-3.2, 6.0)
-
-# ── Panels (b)–(d): reliability diagrams ─────────────────────────────────
-panels = [
-    ("(b) TS  [Voted labels]",   p_ts, PAL["ts"],  yh1hot, False, T_ts,   "lightyellow", PAL["gap"]),
-    ("(c) TS  [Soft labels]",   p_ts, PAL["ts"],  ys_te,  True,  T_ts,   "#FFE0E0",    PAL["gap"]),
-    ("(d) Platt [Soft labels]", p_ps, PAL["ps"],  ys_te,  True,  None,   "#FFE0F0",    PAL["gap"]),
-]
-
-for col, (title, p, col_c, tgt, do_arrow, T, fc, ec) in enumerate(panels):
-    ax = axs[col + 1]
-    rel_ax(ax, p, tgt, title, col_c, arrow=do_arrow)
-    if T is not None:
-        direction = f"< 1  ↑conf" if T < 1 else f"> 1  ↓conf"
-        ax.text(0.97, 0.04, f"T = {T:.3f}\n({direction})",
-                transform=ax.transAxes, ha="right", va="bottom", fontsize=8.2,
-                bbox=dict(boxstyle="round", fc=fc, ec=ec, alpha=0.93, lw=1.2))
-
-# ── Panel (e): stratified ECE (right-most column) ─────────────────────────
-ax_strat = axs[4]
-
-# Stratified: show all hard-label baselines fail on ambiguous cluster
-strat_methods = [
-    ("TS",         p_ts,  PAL["ts"]),
-    ("Platt (PS)", p_ps,  PAL["ps"]),
-    ("HB-Hard",    p_hb,  PAL["hbh"]),
-]
-n_sm = len(strat_methods)
-x2   = np.arange(2)
-w2   = 0.22
-offsets = np.linspace(-(n_sm - 1) / 2, (n_sm - 1) / 2, n_sm) * (w2 + 0.03)
-max_val = 0
-for i, (nm, p_m, col_c) in enumerate(strat_methods):
-    ea = ece_bins(p_m[amb_te],  ys_te[amb_te])[0]  * 100
-    ec = ece_bins(p_m[~amb_te], ys_te[~amb_te])[0] * 100
-    max_val = max(max_val, ea, ec)
-    b2 = ax_strat.bar(x2 + offsets[i], [ea, ec], w2, label=nm,
-                      color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
-    for b in b2:
-        ax_strat.text(b.get_x() + b.get_width()/2, b.get_height() + 0.12,
-                      f"{b.get_height():.1f}", ha="center", va="bottom", fontsize=9)
-
-ax_strat.set_xticks(x2)
-ax_strat.set_xticklabels(["Ambiguous\nsamples", "Clear\nsamples"], fontsize=10)
-ax_strat.set_ylabel("ECE-Soft (%)")
-ax_strat.set_title("(e) ECE-Soft by\nambiguity", fontweight="bold")
-ax_strat.legend(fontsize=9)
-ax_strat.grid(True, axis="y", alpha=0.25)
-ax_strat.set_ylim(0, max_val * 1.65)
-
-plt.savefig(OUT / "fig1_toy.pdf", bbox_inches="tight")
-plt.savefig(OUT / "fig1_toy.png", dpi=180, bbox_inches="tight")
-plt.close(); print("  → fig1_toy.pdf")
-
-
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Fig 3: Summary bar chart — all methods, ECE-Voted vs ECE-Soft
@@ -459,7 +349,7 @@ for b in list(bh)+list(bsamp)+list(bs):
     ax.text(b.get_x()+b.get_width()/2, h+0.06, f"{h:.1f}",
             ha="center", va="bottom", fontsize=9)
 
-# Annotate calibration gap for TS
+# Annotate the voted-label / true-label discrepancy for TS
 i_ts = nm_all.index("TS")
 ax.annotate("", xy=(i_ts+w, es_all[i_ts]), xytext=(i_ts-w, eh_all[i_ts]),
             arrowprops=dict(arrowstyle="<->", color=PAL["gap"], lw=2.2))
@@ -484,61 +374,103 @@ plt.close(); print("  → fig3_summary.pdf")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Fig 4: Stratified ECE-Soft by annotation entropy quartile
+# Fig 4: Stratified ECE-True by annotation entropy quartile (CIFAR-10H)
+# Uses rank-based equal-size quartiles to avoid empty Q1 when many samples
+# share entropy near 0 (unanimous annotations).
 # ══════════════════════════════════════════════════════════════════════════════
 
-print("Generating fig4_stratified …")
+print("Generating fig4_stratified ...")
 
-def entropy(ys, eps=1e-12):
-    ys = np.clip(ys, eps, 1); return -np.sum(ys * np.log(ys), axis=1)
+import json as _json
 
-H = entropy(ys_te)
-q_edges = np.quantile(H, [0, 0.25, 0.5, 0.75, 1.0])
+_ROOT    = Path(__file__).parent.parent
+_CACHE   = _ROOT / "experiments" / "cache"
+_RESULTS = _ROOT / "experiments" / "results"
 
-strat_methods = [
-    ("TS",           p_ts,   PAL["ts"]),
-    ("Platt (PS)",   p_ps,   PAL["ps"]),
-    ("MCTS (ours)",  p_mcts, PAL["mcts"]),
-    ("SLTS (ours)",  p_slts, PAL["slts"]),
+# Load CIFAR-10H soft labels and hard labels
+_cifar10h = np.load(_CACHE / "cifar10h-probs.npy")  # (10000, 10)
+sys.path.insert(0, str(_ROOT / "experiments"))
+from run_cifar10h import get_cifar10_testset as _get_testset
+_testset     = _get_testset(str(_CACHE / "cifar10"))
+_hard_labels = np.array([y for _, y in _testset])   # (10000,)
+
+# Reproduce the same 50/50 stratified split as in run_cifar10h.py (seed=42)
+_rng      = np.random.default_rng(42)
+_idx      = np.arange(10000)
+_cal_mask = np.zeros(10000, dtype=bool)
+for _c in range(10):
+    _ci = _idx[_hard_labels == _c]
+    _ch = _rng.choice(_ci, size=len(_ci) // 2, replace=False)
+    _cal_mask[_ch] = True
+_idx_te = _idx[~_cal_mask]
+
+_ys_te = _cifar10h[_idx_te]   # (5000, 10)
+
+def _ann_entropy(ys, eps=1e-12):
+    ys = np.clip(ys, eps, 1.0)
+    return -np.sum(ys * np.log(ys), axis=1)
+
+def _ece_soft(probs, labels_soft, n_bins=15):
+    conf = probs.max(axis=1)
+    pred = probs.argmax(axis=1)
+    edges = np.linspace(0, 1, n_bins + 1)
+    ece = 0.0; n = len(probs)
+    for _lo, _hi in zip(edges[:-1], edges[1:]):
+        m = (conf >= _lo) & (conf < _hi)
+        if m.sum() == 0:
+            continue
+        acc = labels_soft[m][np.arange(m.sum()), pred[m]].mean()
+        ece += m.sum() / n * abs(conf[m].mean() - acc)
+    return ece
+
+def _rank_quartile_ece(probs, ys, n_bins=15):
+    """4 equal-size groups by entropy rank; returns [ece_Q1, ..., ece_Q4]."""
+    H = _ann_entropy(ys)
+    order = np.argsort(H, kind="stable")
+    n = len(H)
+    return [_ece_soft(probs[order[q*n//4:(q+1)*n//4]],
+                      ys[order[q*n//4:(q+1)*n//4]], n_bins) * 100
+            for q in range(4)]
+
+_archs = [
+    ("ResNet-50", "resnet50", "cifar10h_results_resnet50.json"),
+    ("ViT-B/16",  "vit_b16",  "cifar10h_results_vit_b16.json"),
+]
+_strat_cfg = [
+    ("TS",    PAL["ts"],   "ts_temperature"),
+    ("SLTS",  PAL["slts"], "slts_temperature"),
+    ("LS-TS", PAL["lsts"], "ls_ts_temperature"),
 ]
 
-quant_ece = {nm: [] for nm, _, _ in strat_methods}
-for q in range(4):
-    lo, hi = q_edges[q], q_edges[q+1]
-    mask = (H >= lo) & (H <= hi) if q == 3 else (H >= lo) & (H < hi)
-    for nm, p, _ in strat_methods:
-        e, _ = ece_bins(p[mask], ys_te[mask])
-        quant_ece[nm].append(e * 100)
+fig4, axes4 = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
+_xq = np.array([1, 2, 3, 4])
+_xlabs = ["Q1\n(unanimous)", "Q2", "Q3", "Q4\n(ambiguous)"]
 
-fig, ax = plt.subplots(figsize=(8, 5))
-x = np.arange(4)
-n_m = len(strat_methods)
-offsets = np.linspace(-(n_m-1)/2, (n_m-1)/2, n_m) * 0.20
-for off, (nm, _, col_c) in zip(offsets, strat_methods):
-    bars = ax.bar(x + off, quant_ece[nm], 0.18, label=nm,
-                  color=col_c, alpha=0.85, edgecolor="black", lw=0.7)
-    for b in bars:
-        h = b.get_height()
-        ax.text(b.get_x()+b.get_width()/2, h+0.05, f"{h:.1f}",
-                ha="center", va="bottom", fontsize=9)
+for _ax, (_alabel, _akey, _jfile) in zip(axes4, _archs):
+    with open(_RESULTS / _jfile) as _f:
+        _res = _json.load(_f)
+    _logits_all = np.load(_CACHE / f"logits_test_{_akey}.npy")
+    _logits_te  = _logits_all[_idx_te]
+    for _mlabel, _col, _Tkey in _strat_cfg:
+        _T     = _res[_Tkey]
+        _probs = torch.softmax(torch.tensor(_logits_te / _T), dim=1).numpy()
+        _ece_q = _rank_quartile_ece(_probs, _ys_te)
+        _ax.plot(_xq, _ece_q, marker="o", color=_col, label=_mlabel,
+                 linewidth=2.0, markersize=6)
+    _ax.set_xticks(_xq)
+    _ax.set_xticklabels(_xlabs, fontsize=10)
+    _ax.set_xlabel("Annotation entropy quartile")
+    _ax.set_title(_alabel, fontweight="bold")
+    _ax.grid(True, axis="y", alpha=0.3)
+    _ax.grid(True, axis="x", alpha=0.15)
 
-ax.set_xticks(x)
-ax.set_xticklabels([
-    "Q1\n(low ambiguity\nH≈0)",
-    "Q2",
-    "Q3",
-    "Q4\n(high ambiguity)",
-])
-ax.set_xlabel("Annotation entropy quartile")
-ax.set_ylabel("ECE-Soft (%)")
-ax.set_title("ECE-Soft Stratified by Ambiguity Level",
-             fontweight="bold", fontsize=14)
-ax.legend(loc="upper left")
-ax.grid(True, axis="y", alpha=0.25)
-
+axes4[0].set_ylabel("ECE-True (%)")
+axes4[1].legend(loc="upper left")
+fig4.suptitle("ECE-True by annotation entropy quartile (CIFAR-10H)",
+              fontweight="bold", fontsize=13)
 plt.tight_layout()
-plt.savefig(OUT/"fig4_stratified.pdf", bbox_inches="tight")
-plt.close(); print("  → fig4_stratified.pdf")
+plt.savefig(OUT / "fig4_stratified.pdf", bbox_inches="tight")
+plt.close(); print("  -> fig4_stratified.pdf")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -688,7 +620,7 @@ for b in list(bh_d) + list(bsamp_d) + list(bs_d):
     ax_bar.text(b.get_x() + b.get_width()/2, h + 0.08, f"{h:.1f}",
                 ha="center", va="bottom", fontsize=8)
 
-# Calibration gap arrow for TS
+# Discrepancy arrow for TS
 if "TS" in _nm_all:
     i_ts = list(_nm_all).index("TS")
     ax_bar.annotate("", xy=(i_ts + w, _es_all[i_ts]),
@@ -952,12 +884,6 @@ ax8.set_xlabel("Annotator's label", fontsize=12)
 ax8.set_ylabel("Consensus (majority-vote) label", fontsize=12)
 
 overall_agr = float(np.diag(CONFUSION_ISIC).mean())
-ax8.set_title(
-    "ISIC 2019 Inter-Reader Confusion Matrix\n"
-    rf"$C_{{ij}}=\Pr(\text{{annotator says }}j\mid\text{{consensus label }}i)$"
-    f"  —  overall agreement {overall_agr:.0%}",
-    fontsize=11.5, fontweight="bold",
-)
 
 # Highlight MEL/NV confusion cluster
 from matplotlib.patches import Rectangle
