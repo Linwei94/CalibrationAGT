@@ -407,7 +407,7 @@ def run_experiment(args):
     print_results_table(main_results)
 
     # Stratified by ambiguity
-    print("\n--- Stratified ECE-Soft (ambiguous vs. clear) ---")
+    print("\n--- Stratified ECE_true (ambiguous vs. clear) ---")
     strat_results = {}
     for name, p in [
         ("TS",          p_ts),

@@ -426,8 +426,8 @@ def _make_figure(X_te, yh_te, ys_te, amb_te, yh1hot,
 
     # ── Save ─────────────────────────────────────────────────────────────────
     out_png = Path(__file__).parent / 'toy_example_figure.png'
-    out_pdf = Path(__file__).parent.parent / 'paper' / 'figs' / 'fig1_toy.pdf'
-    out_png2 = Path(__file__).parent.parent / 'paper' / 'figs' / 'fig1_toy.png'
+    out_pdf = Path(__file__).parent.parent / 'paper' / 'figs' / 'toy_example.pdf'
+    out_png2 = Path(__file__).parent.parent / 'paper' / 'figs' / 'toy_example.png'
 
     plt.savefig(str(out_png), dpi=150, bbox_inches='tight')
     plt.savefig(str(out_pdf), bbox_inches='tight')

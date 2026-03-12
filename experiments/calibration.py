@@ -7,12 +7,12 @@ Methods
   PlattScaling        (PS)    — matrix scaling (W,b) vs. hard labels [Platt 1999 / Kull 2019]
   SoftLabelTS         (SLTS)  — KL(π(x) ‖ softmax(z/T))             [ours]
   MonteCarloTS        (MCTS)  — sample individual annotations → NLL  [ours, cf. Stutz 2023]
-  VectorScaling       (VS)    — per-class temperatures, soft labels  [ours]
+  VectorScaling       (VS)    — per-class temperatures, ambiguity-aware targets [ours]
   PseudoSoftLabelTS   (PSLTS) — annotation-free; ε_i=1-f_i[y*]      [ours]
   LabelSmoothTS       (LS-TS) — global label smoothing baseline      [ours]
   HardHistogramBinning(HB-H)  — non-parametric, hard accuracy targets[Zadrozny & Elkan 2001]
-  SoftHistogramBinning(HB-S)  — non-parametric, soft targets         [ours]
-  SoftIsotonicReg     (IR)    — isotonic regression, soft targets    [ours]
+  SoftHistogramBinning(HB-S)  — non-parametric, distributional targets [ours]
+  SoftIsotonicReg     (IR)    — isotonic regression, distributional targets [ours]
 """
 
 import numpy as np
@@ -150,7 +150,7 @@ class SoftPlattScaling(nn.Module):
 
     Same diagonal affine transform as PlattScaling (W·z + b with diagonal W),
     but trained against the annotator distribution using KL divergence.
-    This is the natural soft-label extension of PlattScaling, and isolates
+    This is the natural ambiguity-aware extension of PlattScaling, and isolates
     whether gains come from (a) soft targets alone or (b) parametric form.
     """
 
@@ -404,6 +404,116 @@ class LabelSmoothTS(nn.Module):
         return self.temperature.item()
 
 
+class EMSmoothTS(nn.Module):
+    """
+    EM Label-Smooth Temperature Scaling (EM-LS-TS).
+
+    Iterative version of LS-TS: repeats the E-step (re-estimate ε from
+    calibrated softmax) and M-step (re-optimise T) for multiple rounds.
+
+    Round 0 is identical to standard LS-TS.
+    """
+
+    def __init__(self, init_T: float = 1.5):
+        super().__init__()
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+        self.history: list[dict] = []   # stores per-round {eps, T}
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    def fit(self, logits: torch.Tensor, labels_hard: torch.Tensor,
+            n_rounds: int = 1) -> "EMSmoothTS":
+        K = logits.shape[1]
+        self.history = []
+
+        for rnd in range(n_rounds):
+            # E-step: estimate ε from current calibrated softmax
+            with torch.no_grad():
+                f = torch.softmax(self(logits), dim=1)
+                conf = f[torch.arange(len(labels_hard)), labels_hard]
+                eps = (1.0 - conf).mean().item()
+                yh = torch.zeros_like(f)
+                yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)
+                pi_hat = (1 - eps) * yh + (eps / K)
+
+            # M-step: optimise T given pseudo-labels
+            self.temperature = nn.Parameter(torch.ones(1) * max(self.temperature.item(), 0.5))
+            opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                      tolerance_grad=1e-9, tolerance_change=1e-11)
+
+            def closure():
+                opt.zero_grad()
+                log_p = torch.log_softmax(self(logits), dim=1)
+                loss = -(pi_hat * log_p).sum(1).mean()
+                loss.backward()
+                return loss
+
+            opt.step(closure)
+            self.history.append({"round": rnd, "eps": eps, "T": self.temperature.item()})
+
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
+class ClassCondLabelSmoothTS(nn.Module):
+    """
+    Class-Conditional Label-Smooth TS (CC-LS-TS).
+
+    Uses per-class smoothing: ε_k = mean_{i: y*_i=k}(1 - f_i[y*_i]).
+    Captures the fact that some classes are more ambiguous than others.
+    """
+
+    def __init__(self, init_T: float = 1.5):
+        super().__init__()
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+        self.eps_per_class: list[float] = []
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    def fit(self, logits: torch.Tensor,
+            labels_hard: torch.Tensor) -> "ClassCondLabelSmoothTS":
+        with torch.no_grad():
+            K = logits.shape[1]
+            f = torch.softmax(logits, dim=1)
+            conf = f[torch.arange(len(labels_hard)), labels_hard]
+
+            # Per-class ε
+            eps_k = torch.zeros(K)
+            for k in range(K):
+                mask = labels_hard == k
+                if mask.sum() > 0:
+                    eps_k[k] = (1.0 - conf[mask]).mean()
+            self.eps_per_class = eps_k.tolist()
+
+            # Build pseudo-labels with per-class ε
+            eps_i = eps_k[labels_hard]  # (N,)
+            yh = torch.zeros_like(f)
+            yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)
+            pi_hat = (1 - eps_i).unsqueeze(1) * yh + (eps_i / K).unsqueeze(1)
+
+        opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                  tolerance_grad=1e-9, tolerance_change=1e-11)
+
+        def closure():
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss = -(pi_hat * log_p).sum(1).mean()
+            loss.backward()
+            return loss
+
+        opt.step(closure)
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
 class MonteCarloTS(nn.Module):
     """
     Monte Carlo Temperature Scaling (MCTS).
@@ -434,7 +544,7 @@ class MonteCarloTS(nn.Module):
         """
         rng = np.random.default_rng(self.seed)
         N, K = labels_soft.shape
-        lsoft_np = labels_soft.numpy()
+        lsoft_np = labels_soft.detach().cpu().numpy()
 
         # Sample individual annotations
         rows, cols = [], []
@@ -446,8 +556,9 @@ class MonteCarloTS(nn.Module):
             rows.extend([i] * self.n_samples)
             cols.extend(sampled.tolist())
 
-        idx_n  = torch.tensor(rows, dtype=torch.long)
-        labels_flat = torch.tensor(cols, dtype=torch.long)
+        device = logits.device
+        idx_n  = torch.tensor(rows, dtype=torch.long, device=device)
+        labels_flat = torch.tensor(cols, dtype=torch.long, device=device)
         logits_exp  = logits[idx_n]          # (N*n_samples, K)
 
         opt  = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
@@ -470,7 +581,7 @@ class MonteCarloTS(nn.Module):
 
 class VectorScaling(nn.Module):
     """
-    Vector Scaling: one temperature parameter per class, soft-label variant.
+    Vector Scaling: one temperature parameter per class, ambiguity-aware variant.
 
     logits_calibrated_k = logit_k / T_k
     """

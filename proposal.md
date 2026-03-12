@@ -2,6 +2,8 @@
 
 **Draft Proposal** — March 2026
 
+> Note: this file is a historical proposal draft. It predates the current manuscript in `paper/main.tex` and still uses older terminology such as "soft labels". For the current framing, figures, and reported numbers, use `paper/main.tex` and `README.md`.
+
 ---
 
 ## 1. Motivation
@@ -93,7 +95,7 @@ $$\mathrm{SCE} = \sum_{b=1}^{B} \frac{|B_b|}{n} \left| \overline{\pi}_{\hat{c}}(
 
 where $B_b$ is the $b$-th confidence bin, $\overline{p}(B_b)$ is the mean confidence in the bin, and $\overline{\pi}_{\hat{c}}(B_b)$ is the mean annotator probability for the predicted class.
 
-### 3.4 The Calibration Gap
+### 3.4 Voted-Label and True-Label Mismatch
 
 For ambiguous inputs (where $\pi(\cdot \mid x)$ is not one-hot), we expect:
 
@@ -119,7 +121,7 @@ Temperature Scaling applies a single scalar $T$ to rescale all logits. It cannot
 
 ### 4.3 The ECE Measurement Illusion
 
-If calibration is evaluated using hard labels (ECE-Hard), standard TS will appear well-calibrated because both the calibration objective and the evaluation metric use the same voted labels. The miscalibration only becomes visible when evaluating with soft labels (ECE-Soft), exposing the "calibration gap"—the direct analog of the coverage gap in conformal prediction.
+If calibration is evaluated using hard labels (ECE-Hard), standard TS will appear well-calibrated because both the calibration objective and the evaluation metric use the same voted labels. The miscalibration only becomes visible when evaluating with soft labels (ECE-Soft), exposing the mismatch between voted-label and ambiguity-aware evaluation, the direct analog of the coverage mismatch in conformal prediction.
 
 ---
 
@@ -221,7 +223,7 @@ We aim to derive finite-sample bounds on the SCE for our proposed methods, analo
 
 ### 7.5 Key Hypotheses to Verify
 
-1. **H1 (Calibration Gap)**: Standard TS exhibits a significant gap between ECE-Hard and ECE-Soft, especially for ambiguous samples.
+1. **H1 (Evaluation Mismatch)**: Standard TS exhibits a significant difference between ECE-Hard and ECE-Soft, especially for ambiguous samples.
 2. **H2 (Soft Calibration)**: SLTS and MCTS reduce ECE-Soft significantly compared to TS.
 3. **H3 (No Hard Calibration Regression)**: Soft-calibrated models maintain competitive ECE-Hard.
 4. **H4 (Ambiguity-Stratified)**: The gap between TS and our methods is largest for high-ambiguity samples.
@@ -230,7 +232,7 @@ We aim to derive finite-sample bounds on the SCE for our proposed methods, analo
 
 ## 8. Motivating Toy Example
 
-To establish the existence and magnitude of the calibration gap, we construct a controlled synthetic experiment:
+To establish the existence and magnitude of this mismatch, we construct a controlled synthetic experiment:
 
 **Setup**: A 3-class classification problem with:
 - Class 0: "clear" inputs, always labeled 0 ($\pi_0 = 1.0$)
@@ -245,7 +247,7 @@ To establish the existence and magnitude of the calibration gap, we construct a 
 3. Evaluate calibration using both ECE-Hard and ECE-Soft.
 4. Plot reliability diagrams for both metrics.
 
-**Concrete findings** (from `toy_example/run_toy_example.py`):
+**Concrete findings** (from `experiments/run_toy_example.py`):
 
 | Method       | ECE-Hard | ECE-Soft | T (temperature) |
 |---|---|---|---|
@@ -262,14 +264,14 @@ Stratified ECE-Soft by input ambiguity:
 
 Key insight: TS calibrated on voted labels finds T < 1 (decreases temperature → MORE confident), because for the ambiguous cluster all voted labels are always class 1 so the model appears "underconfident" in the hard sense. This is precisely the wrong direction: soft calibration requires T > 1 to bring the model's confidence down to the true annotator probability of 0.70.
 
-See `toy_example/run_toy_example.py` for the implementation.
+See `experiments/run_toy_example.py` for the implementation.
 
 ---
 
 ## 9. Expected Contributions
 
 1. **Formal definition** of confidence calibration under ambiguous ground truth (soft calibration), with a clear connection to existing proper scoring rule theory.
-2. **Empirical demonstration** of the calibration gap: standard TS is miscalibrated with respect to annotator label distributions.
+2. **Empirical demonstration** that standard TS is miscalibrated with respect to annotator label distributions.
 3. **Proposed methods**: Monte Carlo TS, Soft-Label TS, and ambiguity-aware binning—simple, practical, post-hoc calibration methods for the ambiguous setting.
 4. **Theoretical analysis**: Proper scoring rule guarantees for proposed methods; finite-sample error bounds.
 5. **Comprehensive experiments** on real-world datasets with annotator disagreement, establishing new benchmarks for soft calibration.
@@ -280,7 +282,7 @@ See `toy_example/run_toy_example.py` for the implementation.
 
 ### 10.1 When Does This Matter?
 
-The calibration gap will be small when label ambiguity is low (most medical AI systems with clear diagnoses) and large when label ambiguity is high (rare diseases, edge cases, low-resolution inputs). Our work is most impactful precisely in the high-stakes, high-ambiguity settings where calibration is most critical for decision-making.
+This mismatch will be small when label ambiguity is low (most medical AI systems with clear diagnoses) and large when label ambiguity is high (rare diseases, edge cases, low-resolution inputs). Our work is most impactful precisely in the high-stakes, high-ambiguity settings where calibration is most critical for decision-making.
 
 ### 10.2 Connections to Uncertainty Quantification
 

@@ -305,7 +305,7 @@ def build_model(arch: str = "efficientnet_b4") -> nn.Module:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Annotator soft-label generation
+# Annotator-distribution generation
 # ──────────────────────────────────────────────────────────────────────────────
 
 def generate_soft_labels(
@@ -551,7 +551,7 @@ def main():
     ps   = PlattScaling(N_CLASSES).fit(logits_v, yh_val_t)
     dc_h = DirichletCalibration(N_CLASSES).fit_hard(logits_v, yh_val_t)
 
-    # Soft-label methods (ours)
+    # Ambiguity-aware methods (ours)
     slts = SoftLabelTS().fit(logits_v, ys_val_t)
     mcts = MonteCarloTS(n_samples=50).fit(logits_v, ys_val_t)
     vs   = VectorScaling(N_CLASSES).fit(logits_v, ys_val_t)
@@ -646,8 +646,8 @@ def main():
         print(f"  {name:<18}: amb={s.get('ece_soft_ambiguous', float('nan'))*100:.2f}%  "
               f"clear={s.get('ece_soft_clear', float('nan'))*100:.2f}%")
 
-    # Per-class ECE-Soft
-    print("\n--- Per-class ECE-Soft (SLTS vs TS) ---")
+    # Per-class ECE_true
+    print("\n--- Per-class ECE_true (SLTS vs TS) ---")
     per_class = {}
     for c, cname in enumerate(CLASS_NAMES):
         mask = test_labels == c
