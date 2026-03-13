@@ -73,7 +73,7 @@ This failure is structural, affecting classic calibration methods such as Temper
 We prove that Temperature Scaling is biased toward lower temperatures than this ambiguity-aware target distribution requires, and that the resulting true-label error increases with annotation entropy.
 To address this failure, we propose a family of ambiguity-aware post-hoc calibrators that optimize proper scoring rules against the full label distribution, among which \textbf{Dirichlet-Soft} --- a full $K\!\times\!K$ affine calibrator fitted against the annotator distribution --- consistently achieves the best distributional fit.
 For the more common case where the calibration set contains only one-hot voted labels, we propose \textbf{Label-Smooth Temperature Scaling (LS-TS)}, which constructs pseudo-soft targets from the model's own confidence without any additional annotations.
-Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST, spanning eight architectures across vision and language, show that Dirichlet-Soft reduces true-label ECE by 48--91\% relative to standard Temperature Scaling and achieves the best Brier score and NLL across all benchmarks, while LS-TS reduces true-label ECE by 13--77\% without requiring annotator distributions.
+Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST, spanning eight architectures across vision and language, show that Dirichlet-Soft reduces true-label ECE by 59--86\% relative to standard Temperature Scaling and achieves the best Brier score and NLL across all benchmarks, while LS-TS reduces true-label ECE by 7--78\% without requiring annotator distributions.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ Figure~\ref{fig:intro-ambiguity} illustrates the core issue: a single input can 
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Problem and theory} (Sections~\ref{sec:problem}--\ref{sec:theory}): we formalize true-label calibration under ambiguous labels and show that TS is biased toward overly low temperatures, with true-label miscalibration becoming more severe as annotation entropy increases.
   \item \textbf{Methods} (Section~\ref{sec:methods}): we propose ambiguity-aware post-hoc calibrators --- notably \textbf{Dirichlet-Soft}, which consistently achieves the best distributional fit --- for settings with annotator distributions, and \textbf{LS-TS} for the more realistic setting where the calibration set contains only one-hot voted labels.
-  \item \textbf{Evidence} (Sections~\ref{sec:toy} and~\ref{sec:experiments}): a controlled toy example and four real benchmarks show that standard calibrators can worsen true-label calibration, while Dirichlet-Soft reduces $\ECEtrue$ by 48--91\% and LS-TS by 13--77\% consistently across vision and language.
+  \item \textbf{Evidence} (Sections~\ref{sec:toy} and~\ref{sec:experiments}): a controlled toy example and four real benchmarks show that standard calibrators can worsen true-label calibration, while Dirichlet-Soft reduces $\ECEtrue$ by 59--86\% and LS-TS by 7--78\% consistently across vision and language.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -349,9 +349,6 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
   \end{tabular}}
 \end{table}
 
-\paragraph{Results.}
-Both CIFAR-10H backbones show the same pattern: hard-label baselines still leave 4--5\% ECE$_\text{true}$, while ambiguity-aware methods reduce it to below 2\%.  Dirichlet-Soft achieves the best Brier score and NLL on both architectures (0.109/0.271 on ResNet-50; 0.100/0.255 on ViT-B/16), confirming that expressive distribution-aware calibrators provide the best distributional fit.  LS-TS, using only voted labels, already reduces ECE from 4.29\% to 1.57\% (ResNet-50) and from 4.48\% to 2.37\% (ViT-B/16), competitive with fully ambiguity-aware methods.
-
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_cifar.pdf}
@@ -363,6 +360,21 @@ Both CIFAR-10H backbones show the same pattern: hard-label baselines still leave
   }
   \label{fig:reliability-main}
 \end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_chaosnli.pdf}
+  \caption{
+    \textbf{Reliability diagrams for four representative methods — ChaosNLI RoBERTa-Large (ECE$_\text{true}$).}
+    Same method selection as Figure~\ref{fig:reliability-main}.
+    Red shading indicates overconfidence; green indicates underconfidence.
+    NLI models are severely overconfident before calibration; ambiguity-aware methods substantially correct this.
+  }
+  \label{fig:reliability-chaosnli-main}
+\end{figure}
+
+\paragraph{Results.}
+Both CIFAR-10H backbones show the same pattern: hard-label baselines still leave 4--5\% ECE$_\text{true}$, while ambiguity-aware methods reduce it to below 2\%.  Dirichlet-Soft achieves the best Brier score and NLL on both architectures (0.109/0.271 on ResNet-50; 0.100/0.255 on ViT-B/16), confirming that expressive distribution-aware calibrators provide the best distributional fit.  LS-TS, using only voted labels, already reduces ECE from 4.29\% to 1.57\% (ResNet-50) and from 4.48\% to 2.37\% (ViT-B/16), competitive with fully ambiguity-aware methods.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{ChaosNLI: Natural Language Inference}
@@ -379,7 +391,7 @@ The same pattern holds in NLI: hard-label baselines leave 10--12\% ECE, while Di
 \label{sec:isic2019}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 skin conditions, ${\approx}25{,}000$ images), a clinically realistic differential-diagnosis task in which several lesion categories have overlapping visual morphology.  We use $K=9$ synthetic dermatologist annotations per image, generated from a clinically calibrated $8\times8$ confusion matrix (Appendix~\ref{app:isic-confusion}) matching \citet{liu2020deep}: mean diagonal agreement $75\%$.  We evaluate \textbf{EfficientNet-B4} \citep{tan2019efficientnet} and \textbf{ViT-S/16} \citep{dosovitskiy2021image} on a stratified 70/15/15 split.
+We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 skin conditions, ${\approx}25{,}000$ images), a clinically realistic differential-diagnosis task in which several lesion categories have overlapping visual morphology.  We use $m=9$ synthetic dermatologist annotations per image, generated from a clinically calibrated $8\times8$ confusion matrix (Appendix~\ref{app:isic-confusion}) matching \citet{liu2020deep}: mean diagonal agreement $75\%$.  We evaluate \textbf{EfficientNet-B4} \citep{tan2019efficientnet} and \textbf{ViT-S/16} \citep{dosovitskiy2021image} on a stratified 70/15/15 split.
 
 \begin{table}[t]
   \centering
@@ -400,7 +412,7 @@ We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 ski
     Method & $T$ & ECE$\downarrow$ & aECE$\downarrow$ & cwECE$\downarrow$ & Br$\downarrow$ & NLL$\downarrow$
            & $T$ & ECE$\downarrow$ & aECE$\downarrow$ & cwECE$\downarrow$ & Br$\downarrow$ & NLL$\downarrow$ \\
     \midrule
-    \multicolumn{13}{l}{\textbf{ISIC 2019} \textit{($K{=}9$ synthetic annotators, mean diagonal agreement $75\%$)}} \\
+    \multicolumn{13}{l}{\textbf{ISIC 2019} \textit{($m{=}9$ synthetic annotators, mean diagonal agreement $75\%$)}} \\
     \midrule
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  & 25.76 & 25.84 &  6.67 & 0.600 & 2.710  & ---  & 23.31 & 23.33 &  6.55 & 0.651 & 1.978 \\
@@ -423,7 +435,7 @@ We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 ski
     Method & $T$ & ECE$\downarrow$ & aECE$\downarrow$ & cwECE$\downarrow$ & Br$\downarrow$ & NLL$\downarrow$
            & $T$ & ECE$\downarrow$ & aECE$\downarrow$ & cwECE$\downarrow$ & Br$\downarrow$ & NLL$\downarrow$ \\
     \midrule
-    \multicolumn{13}{l}{\textbf{DermaMNIST} \textit{($K{=}5$ synthetic annotators, overall agreement $64.7\%$)}} \\
+    \multicolumn{13}{l}{\textbf{DermaMNIST} \textit{($m{=}5$ synthetic annotators, overall agreement $64.7\%$)}} \\
     \midrule
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  & 34.35 & 34.26 & 10.15 & 0.767 & 2.689  & ---  & 37.12 & 37.10 & 10.82 & 0.786 & 3.766 \\
@@ -452,14 +464,14 @@ The medical setting shows the same failure mode for standard calibrators and the
 \label{sec:dermamnist}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-class, derived from HAM10000 \citep{tschandl2018ham10000}; $K=5$ synthetic annotators; overall agreement $\approx 64.7\%$) with two backbones: ResNet-18 and ViT-S/16.  Results in Table~\ref{tab:derm} show that TS leaves ECE $=23.1\%$ for ResNet-18 while ambiguity-aware methods reduce it substantially: SLTS achieves $4.6\%$ (80\% reduction), IR-Soft achieves $2.2\%$ (91\% reduction), and Dirichlet-Soft achieves $3.6\%$ while attaining the best cwECE ($1.2\%$), Brier ($0.610$), and NLL ($1.305$).  ViT-S/16 shows a similar pattern (SLTS: $3.6\%$; Dirichlet-Soft achieves the best ECE, Brier, and NLL: $3.3\%$/$0.601$/$1.286$).  Both backbones show $T_{\text{SLTS}}>T_{\text{TS}}>1$: SLTS requires substantially higher temperature to match the more diffuse annotation distribution.
+We additionally evaluate on \textbf{DermaMNIST} \citep{yang2023medmnist} (7-class, derived from HAM10000 \citep{tschandl2018ham10000}; $m=5$ synthetic annotators; overall agreement $\approx 64.7\%$) with two backbones: ResNet-18 and ViT-S/16.  Results in Table~\ref{tab:derm} show that TS leaves ECE $=23.1\%$ for ResNet-18 while ambiguity-aware methods reduce it substantially: SLTS achieves $4.6\%$ (80\% reduction), IR-Soft achieves $2.2\%$ (91\% reduction), and Dirichlet-Soft achieves $3.6\%$ while attaining the best cwECE ($1.2\%$), Brier ($0.610$), and NLL ($1.305$).  ViT-S/16 shows a similar pattern (SLTS: $3.6\%$; Dirichlet-Soft achieves the best ECE, Brier, and NLL: $3.3\%$/$0.601$/$1.286$).  Both backbones show $T_{\text{SLTS}}>T_{\text{TS}}>1$: SLTS requires substantially higher temperature to match the more diffuse annotation distribution.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{Reliability Diagrams}
 \label{sec:reliability}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Figure~\ref{fig:reliability-main} shows reliability diagrams for four representative methods on CIFAR-10H (ResNet-50).  The diagrams are evaluated against the true label distribution (ECE$_\text{true}$).  Uncal and TS are systematically overconfident: bars fall well below the diagonal at high confidence, leaving a large red gap.  SLTS corrects the overconfidence with a scalar temperature adjustment, aligning most bins close to the diagonal.  Dirichlet-Soft achieves near-perfect calibration by combining the expressive $K\!\times\!K$ affine transform with the correct distributional target.  Corresponding diagrams for ChaosNLI (RoBERTa-Large) are provided in Appendix~\ref{app:reliability}, along with full 3$\times$5 panels covering all 13 methods.
+Figure~\ref{fig:reliability-main} shows reliability diagrams for four representative methods on CIFAR-10H (ResNet-50).  The diagrams are evaluated against the true label distribution (ECE$_\text{true}$).  Uncal and TS are systematically overconfident: bars fall well below the diagonal at high confidence, leaving a large red gap.  SLTS corrects the overconfidence with a scalar temperature adjustment, aligning most bins close to the diagonal.  Dirichlet-Soft achieves near-perfect calibration by combining the expressive $K\!\times\!K$ affine transform with the correct distributional target.  Figure~\ref{fig:reliability-chaosnli-main} shows corresponding diagrams for ChaosNLI (RoBERTa-Large); full 3$\times$5 panels covering all 13 methods and all remaining architectures are provided in Appendix~\ref{app:reliability}.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion}
@@ -473,7 +485,30 @@ A natural question is whether ambiguity-aware methods degrade $\ECEvoted$.  This
 Use \textbf{Dirichlet-Soft} as the default when annotator distributions are available --- it achieves the best Brier score and NLL across all benchmarks while maintaining competitive ECE.  Use \textbf{SLTS} when a single-parameter method is preferred for simplicity; \textbf{IR-Soft} when the lowest ECE is the sole criterion; and \textbf{LS-TS} when the calibration set contains only one-hot voted labels.
 
 \paragraph{Robustness.}
-Appendix~\ref{app:multiseed} confirms that the ranking of methods is stable across random seeds (std~$\leq 0.54$~pp) and Appendix~\ref{app:calset-size} shows that ambiguity-aware methods converge with as few as 5--10\% of the calibration set.
+Figure~\ref{fig:multiseed-main} confirms that the ranking of methods is stable across random seeds (std~$\leq 0.54$~pp); full results for all architectures are in Appendix~\ref{app:multiseed}.
+Figure~\ref{fig:calsize-main} shows that ambiguity-aware methods converge with as few as 5--10\% of the calibration set; full results for all architectures are in Appendix~\ref{app:calset-size}.
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}[t]{0.47\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/fig_multiseed_cifar.pdf}
+    \subcaption{Multi-seed stability.  Mean ECE$_\text{true}$ ($\pm$std) over 5 seeds; ranking is stable across splits.}
+    \label{fig:multiseed-main}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.47\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/fig_calsize_cifar_r50.pdf}
+    \subcaption{Calibration-set-size ablation.  ECE$_\text{true}$ vs.\ fraction of calibration data; ambiguity-aware methods converge at 5--10\%.}
+    \label{fig:calsize-main}
+  \end{minipage}
+  \caption{
+    \textbf{Robustness of ambiguity-aware calibration — CIFAR-10H ResNet-50.}
+    Full results for all architectures in Appendices~\ref{app:multiseed} and~\ref{app:calset-size}; annotation-count ablation in Appendix~\ref{app:annot-count}.
+  }
+  \label{fig:robustness-main}
+\end{figure}
 
 \paragraph{Limitations.}
 Full ambiguity-aware calibration (including Dirichlet-Soft) requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS remains useful but does not fully match Dirichlet-Soft, particularly on datasets where model confidence diverges from annotation ambiguity (e.g., ISIC~2019 ViT-S/16).  ISIC~2019 and DermaMNIST rely on synthetic annotators derived from clinician-reported agreement, so real multi-reader medical calibration sets would provide stronger validation.
@@ -483,16 +518,19 @@ Full ambiguity-aware calibration (including Dirichlet-Soft) requires multi-annot
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the underlying ambiguous label distribution.  Our flagship ambiguity-aware method, \textbf{Dirichlet-Soft}, requires no retraining and achieves the best Brier score and NLL across all four benchmarks and eight architectures spanning vision and language, reducing true-label ECE by 48--91\% relative to Temperature Scaling.  The key insight is that the calibration target --- not method capacity --- is the limiting factor: Dirichlet calibration with voted-label targets (Dirichlet-Hard) consistently \emph{underperforms} simple TS, while the same architecture with soft-label targets (Dirichlet-Soft) achieves the best overall results.  Crucially, when the calibration set contains only one-hot voted labels, our annotation-free method \textbf{LS-TS} still improves true-label calibration, reducing ECE by 13--77\% using only the model's own confidence as a proxy for annotator disagreement.  We recommend Dirichlet-Soft as the default wherever multi-annotator data is available, and LS-TS as a practical post-hoc alternative when only voted labels are available.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the underlying ambiguous label distribution.  Our flagship ambiguity-aware method, \textbf{Dirichlet-Soft}, requires no retraining and achieves the best Brier score and NLL across all four benchmarks and eight architectures spanning vision and language, reducing true-label ECE by 59--86\% relative to Temperature Scaling.  The key insight is that the calibration target --- not method capacity --- is the limiting factor: Dirichlet calibration with voted-label targets (Dirichlet-Hard) consistently \emph{underperforms} simple TS, while the same architecture with soft-label targets (Dirichlet-Soft) achieves the best overall results.  Crucially, when the calibration set contains only one-hot voted labels, our annotation-free method \textbf{LS-TS} still improves true-label calibration, reducing ECE by 7--78\% using only the model's own confidence as a proxy for annotator disagreement.  We recommend Dirichlet-Soft as the default wherever multi-annotator data is available, and LS-TS as a practical post-hoc alternative when only voted labels are available.
 
 \paragraph{Acknowledgements.}
 We thank the anonymous reviewers for their constructive feedback.
 
+\clearpage
 \bibliographystyle{abbrvnat}
 \bibliography{references}
 
 % ─────────────────────────────────────────────────────────────────────────────
+\clearpage
 \appendix
+\raggedbottom
 % ─────────────────────────────────────────────────────────────────────────────
 
 \section{Dataset Background and Sources of Label Ambiguity}
@@ -512,12 +550,7 @@ ISIC~2019 is a multiclass dermoscopic lesion diagnosis benchmark assembled from 
 \paragraph{DermaMNIST.}
 DermaMNIST \citep{yang2023medmnist} is a standardized $28\times28$ version of the dermatology benchmark derived from HAM10000 \citep{tschandl2018ham10000}.  HAM10000 consists of dermatoscopic images of common pigmented lesions collected in clinical practice, where diagnosis already involves fine-grained distinctions among visually similar categories such as melanoma, nevi, and benign keratoses.  DermaMNIST inherits this medical ambiguity from HAM10000 and, because it is aggressively downsampled for lightweight benchmarking, removes additional visual detail that can further increase label uncertainty.  As with ISIC~2019, we therefore evaluate calibration against an ambiguity-aware label distribution rather than treating the majority diagnosis as uniquely correct.
 
-\section{ISIC 2019 Full Results}
-\label{app:isic-results}
-
-See Table~\ref{tab:isic-main} in the main text.
-
-
+\clearpage
 \section{Proof of Proposition~\ref{prop:ts-bias}}
 \label{app:proof-ts}
 
@@ -527,6 +560,7 @@ The TS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{TS}}(T;\mathcal{D
 
 The SLTS loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{SLTS}}(T;\mathcal{D}_\text{amb}) = -|\mathcal{D}_\text{amb}|^{-1}\sum_i\sum_k\pihat_k(x_i)\log\operatorname{softmax}(z_i/T)_k$, with $\pihat_c(x_i)=q<1$.  The minimum-loss $T^*$ satisfies $\operatorname{softmax}(z_i/T^*)_c\approx q$, requiring $T^*>1$ whenever $p_i>q$.  $\square$
 
+\clearpage
 \section{Proof of Proposition~\ref{prop:entropy-gap}}
 \label{app:proof-entropy}
 
@@ -558,6 +592,7 @@ The aggregate excess true-label error relative to voted-label evaluation equals 
 Assumption~(i) (that $\phat_{\hat{c}}(x)$ is approximately independent of $H(x)$) may be violated in practice if harder examples (high $H(x)$) also have lower model confidence.  When the two are positively correlated, the per-example discrepancy term $\delta(x)$ grows even faster with $H(x)$ than the proof suggests, so Proposition~\ref{prop:entropy-gap} remains valid and the monotonicity is if anything \emph{conservative}.
 \end{remark}
 
+\clearpage
 \section{Monte Carlo Temperature Scaling (MCTS)}
 \label{app:mcts-convergence}
 
@@ -568,8 +603,8 @@ When individual annotation records are available rather than pre-aggregated labe
 \]
 MCTS is a strictly more general formulation than SLTS: it applies even when only raw annotation samples are stored rather than pre-computed frequency vectors.
 
-\paragraph{Convergence to SLTS.}
-Since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to SLTS in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} reports the corresponding sweep on CIFAR-10H (ResNet-50).  Even small $S$ already tracks SLTS closely, and the variance shrinks as expected; in practice $S=20$--$50$ is sufficient.
+\paragraph{A single annotation suffices.}
+The key practical implication of MCTS is that \emph{even $S=1$} --- a single randomly drawn annotation per calibration example --- already achieves ECE$_\text{true}$ of 1.53\%, matching SLTS to within rounding error and reducing TS's 4.29\% by $64\%$.  This means that any dataset where each example has been annotated even once by a randomly selected annotator (rather than deterministically assigned the majority label) is immediately amenable to strong ambiguity-aware calibration.  Formally, since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to SLTS in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} confirms the fast convergence: the ECE gap between $S=1$ and $S\to\infty$ is only $0.02$ pp; in practice $S=20$--$50$ is sufficient to reduce variance to negligible levels.
 
 \begin{table}[h]
   \centering
@@ -595,122 +630,290 @@ Since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})]
   \end{tabular}
 \end{table}
 
+\clearpage
 \section{Ablation: Calibration Set Size}
 \label{app:calset-size}
 
-We fix the annotation count at the full observed value and vary the fraction of calibration examples used, from 5\% to 100\% (stratified subsampling by class).  Figure~\ref{fig:calsize} shows results for CIFAR-10H (ResNet-50, ViT-B/16) and ChaosNLI (RoBERTa-Large).
+We fix the annotation count at the full observed value and vary the fraction of calibration examples used, from 5\% to 100\% (stratified subsampling by class).  Results are shown for all four benchmarks and eight architectures.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_calsize_cifar_r50.pdf}%
   \hfill%
-  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_cifar_vit.pdf}\\[4pt]
-  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_chaosnli.pdf}
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_cifar_vit.pdf}
   \caption{
-    \textbf{Calibration-set-size ablation.}  ECE$_\text{true}$ vs.\ fraction of calibration data used
-    (full annotation count; only the number of calibration examples varies).
-    Top: CIFAR-10H ResNet-50 (left) and ViT-B/16 (right).  Bottom: ChaosNLI RoBERTa-Large.
-    TS's ECE does not decrease with more calibration data, confirming that the degradation
-    is a target bias rather than a variance artifact.
-    Ambiguity-aware methods converge quickly and remain stable even at 5--10\% of the calibration set.
+    \textbf{Calibration-set-size ablation — CIFAR-10H.}
+    Left: ResNet-50.  Right: ViT-B/16.
+    TS's ECE is flat across all calibration set sizes; ambiguity-aware methods converge within 5--10\%.
   }
-  \label{fig:calsize}
+  \label{fig:calsize-cifar}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_chaosnli.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_chaosnli_deberta.pdf}
+  \caption{
+    \textbf{Calibration-set-size ablation — ChaosNLI.}
+    Left: RoBERTa-Large.  Right: DeBERTa-v3-base.
+    NLI models show the same pattern: TS is flat near 10--13\% while soft methods stabilise near 3--4\%.
+  }
+  \label{fig:calsize-chaosnli}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_isic_enet.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_isic_vit.pdf}
+  \caption{
+    \textbf{Calibration-set-size ablation — ISIC 2019.}
+    Left: EfficientNet-B4.  Right: ViT-S/16.
+    IR-Soft achieves the lowest ECE across all calibration set sizes on both architectures.
+  }
+  \label{fig:calsize-isic}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_derm_r18.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_calsize_derm_vit.pdf}
+  \caption{
+    \textbf{Calibration-set-size ablation — DermaMNIST.}
+    Left: ResNet-18.  Right: ViT-S/16.
+    Ambiguity-aware methods converge quickly; TS remains flat regardless of calibration set size.
+  }
+  \label{fig:calsize-derm}
 \end{figure}
 
 \paragraph{Key findings.}
-On CIFAR-10H ResNet-50, TS's ECE fluctuates around $3.9\%$ for all calibration set sizes (5\%: $3.4\%$; 100\%: $3.9\%$), confirming that the bias is structural rather than due to insufficient data.  In contrast, SLTS achieves ${\approx}1.4\%$ ECE stably from 5\% onwards, and IR-Soft and Dirichlet-Soft converge below $1.3\%$ with as few as 10\% of the calibration set.  The same pattern holds for ChaosNLI: TS fluctuates around $10$--$13\%$ while SLTS and IR-Soft stabilise near $3\%$ and $2.5\%$, respectively.  This suggests that the annotation distribution (not the number of calibration examples) is the limiting factor for ambiguity-aware methods.
+Across all four benchmarks and eight architectures, TS's ECE does not decrease with more calibration data, confirming that the degradation is a target bias rather than a variance artifact.  In contrast, SLTS achieves stable low ECE from as few as 5--10\% of the calibration set, and IR-Soft and Dirichlet-Soft converge even faster on most benchmarks.  This suggests that the annotation distribution (not the number of calibration examples) is the limiting factor for ambiguity-aware methods.
 
+\clearpage
+\section{Ablation: Number of Annotations per Image}
+\label{app:annot-count}
+
+We study how performance depends on the number of annotations $m$ per calibration image.
+We fix the calibration set size and the annotation generation seed, and sweep $m$ from $1$ to $50$, resampling the soft targets for each value of $m$.
+Results are shown for CIFAR-10H, which provides up to ${\approx}51$ real annotations per image; we subsample from the full pool.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_annot_count_cifar_r50.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_annot_count_cifar_vit.pdf}
+  \caption{
+    \textbf{Annotation-count ablation — CIFAR-10H.}
+    ECE$_\text{true}$ vs.\ annotations per image $m$ for ResNet-50 (left) and ViT-B/16 (right).
+    Ambiguity-aware methods are stable for $m\geq 2$; TS rises with $m$ due to target mismatch; LS-TS converges by $m\approx 4$.
+  }
+  \label{fig:annot-count-cifar}
+\end{figure}
+
+\paragraph{Key findings.}
+Ambiguity-aware calibration is robust to annotation count once $m\geq 2$: SLTS, Dirichlet-Soft, and IR-Soft achieve near-minimal ECE with only a handful of annotations per image and do not improve substantially beyond $m=5$.  LS-TS converges quickly (by $m\approx 4$) because the global smoothing parameter $\varepsilon$ stabilises once each image has at least a few annotations.  Standard Temperature Scaling shows the opposite trend: its ECE$_\text{true}$ \emph{increases} with $m$ because a higher temperature is required to match the more diffuse annotation distribution, exposing the fundamental target mismatch.
+
+\clearpage
 \section{Statistical Significance: Multi-Seed Analysis}
 \label{app:multiseed}
 
-To verify that our main results are not sensitive to the particular calibration/test split (seed~42), we repeat the evaluation with five random seeds (42--46), each producing a different stratified 50/50 split.  Table~\ref{tab:multiseed} reports mean $\pm$ standard deviation of ECE$_\text{true}$ across seeds for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large).
+For CIFAR-10H and ChaosNLI we repeat the evaluation with five random seeds (42--46), each producing a different stratified 50/50 cal/test split.  For ISIC~2019 and DermaMNIST the val/test split is predetermined, so we instead vary the annotation generation seed (42--46), testing sensitivity to the particular synthetic annotation sample.  Table~\ref{tab:multiseed} reports mean $\pm$ std of ECE$_\text{true}$ across seeds for all eight (dataset, arch) combinations.
 
 \begin{table}[h]
   \centering
   \caption{
-    \textbf{Multi-seed stability.}  Mean $\pm$ std of ECE$_\text{true}$ (\%) over 5 random seeds (42--46),
-    each inducing a different stratified cal/test split.
-    Standard deviations are small relative to the ECE gaps, confirming that the ranking of methods is stable across splits.
+    \textbf{Multi-seed stability — all benchmarks and architectures.}
+    Mean $\pm$ std of ECE$_\text{true}$ (\%) over 5 seeds.
+    For CIFAR-10H and ChaosNLI the seed varies the cal/test split;
+    for ISIC~2019 and DermaMNIST it varies the synthetic annotation sample.
+    Standard deviations are small relative to the ECE gaps in all cases.
   }
   \label{tab:multiseed}
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{lcc}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llcccc}
     \toprule
-    Method & CIFAR-10H ResNet-50 & ChaosNLI RoBERTa-L \\
+    Dataset & Arch & TS & SLTS & Dir.-Soft & IR-Soft \\
     \midrule
-    TS             & $4.25 \pm 0.25$ & $11.54 \pm 0.54$ \\
-    SLTS           & $1.61 \pm 0.12$ & $3.85 \pm 0.34$ \\
-    Dirichlet-Soft & $1.37 \pm 0.09$ & $2.90 \pm 0.14$ \\
-    IR-Soft        & $0.89 \pm 0.12$ & $2.40 \pm 0.18$ \\
+    CIFAR-10H   & ResNet-50    & $4.25\pm0.25$ & $1.61\pm0.12$ & $1.37\pm0.09$ & $0.89\pm0.12$ \\
+    CIFAR-10H   & ViT-B/16     & $4.39\pm0.20$ & $0.83\pm0.14$ & $0.74\pm0.07$ & $0.88\pm0.16$ \\
+    ChaosNLI    & RoBERTa-L    & $11.54\pm0.54$ & $3.85\pm0.34$ & $2.90\pm0.14$ & $2.40\pm0.18$ \\
+    ChaosNLI    & DeBERTa-v3   & $12.73\pm0.60$ & $4.41\pm0.54$ & $3.80\pm0.35$ & $2.61\pm0.41$ \\
+    ISIC 2019   & ENet-B4      & $18.84\pm0.17$ & $9.80\pm0.22$ & $8.45\pm0.20$ & $1.79\pm0.16$ \\
+    ISIC 2019   & ViT-S/16     & $16.93\pm0.16$ & $7.30\pm0.13$ & $6.20\pm0.19$ & $2.05\pm0.13$ \\
+    DermaMNIST  & ResNet-18    & $22.43\pm0.28$ & $5.08\pm0.25$ & $3.53\pm0.39$ & $2.33\pm0.17$ \\
+    DermaMNIST  & ViT-S/16     & $24.81\pm0.08$ & $3.61\pm0.28$ & $3.11\pm0.21$ & $2.09\pm0.14$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-All methods show small standard deviations ($\leq 0.54$ percentage points), while the ECE gaps between TS and the ambiguity-aware methods are $2$--$9\times$ larger than the standard deviation, confirming that the improvements reported in Tables~\ref{tab:cifar}--\ref{tab:derm} are statistically robust.
+Across all benchmarks and architectures, standard deviations are small relative to the ECE gaps: TS vs.\ ambiguity-aware methods differ by $2$--$10\times$ the standard deviation, confirming statistical robustness of the results in Tables~\ref{tab:cifar}--\ref{tab:derm}.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.48\linewidth]{figs/fig_multiseed_cifar.pdf}%
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_cifar.pdf}%
   \hfill%
-  \includegraphics[width=0.48\linewidth]{figs/fig_multiseed_chaosnli.pdf}
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_cifar_vit.pdf}
   \caption{
-    \textbf{Multi-seed bar charts.}  Mean ECE$_\text{true}$ with error bars ($\pm$std) over 5 seeds.
-    Left: CIFAR-10H ResNet-50.  Right: ChaosNLI RoBERTa-Large.
+    \textbf{Multi-seed bar charts — CIFAR-10H.}
+    Left: ResNet-50.  Right: ViT-B/16.
   }
-  \label{fig:multiseed}
+  \label{fig:multiseed-cifar}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_chaosnli.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_chaosnli_deberta.pdf}
+  \caption{
+    \textbf{Multi-seed bar charts — ChaosNLI.}
+    Left: RoBERTa-Large.  Right: DeBERTa-v3-base.
+  }
+  \label{fig:multiseed-chaosnli}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_isic_enet.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_isic_vit.pdf}
+  \caption{
+    \textbf{Multi-seed bar charts — ISIC 2019.}
+    Left: EfficientNet-B4.  Right: ViT-S/16.
+    Seed varies the annotation generation; val/test split is fixed.
+  }
+  \label{fig:multiseed-isic}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_derm_r18.pdf}%
+  \hfill%
+  \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_derm_vit.pdf}
+  \caption{
+    \textbf{Multi-seed bar charts — DermaMNIST.}
+    Left: ResNet-18.  Right: ViT-S/16.
+    Seed varies the annotation generation; val/test split is fixed.
+  }
+  \label{fig:multiseed-derm}
 \end{figure}
 
 % ─────────────────────────────────────────────────────────────────────────────
+\clearpage
 \section{Reliability Diagrams}
 \label{app:reliability}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Four representative methods are shown in Figure~\ref{fig:reliability-main} in the main text for CIFAR-10H.  Here we provide the corresponding four-method summary for ChaosNLI (RoBERTa-Large), followed by full 3$\times$5 panels covering all 13 methods on both datasets, grouped by type: voted-label baselines (top row), annotation-free and temperature-based soft methods (middle row), and non-parametric/matrix soft methods (bottom row).
+Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are shown in Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} in the main text.  Here we provide the four-method summary panels and full 3$\times$5 panels for all remaining architectures and datasets.  All panels share the same layout: top row = voted-label baselines (Uncal, TS, Platt, Dir.-Hard, HB-Hard); middle row = annotation-free (LS-TS) and temperature-based soft methods (SLTS, MCTS, SoftPlatt, VS); bottom row = non-parametric/matrix soft methods (Dir.-Soft, HB-Soft, IR-Soft).  Red shading = overconfident; green = underconfident.
 
-\begin{figure}[h]
+\clearpage
+\subsection*{CIFAR-10H}
+
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figs/fig_reliability_chaosnli.pdf}
-  \caption{
-    \textbf{Reliability diagrams for four representative methods — ChaosNLI RoBERTa-Large (ECE$_\text{true}$).}
-    Same method selection as Figure~\ref{fig:reliability-main}.
-    Red shading indicates overconfidence; green indicates underconfidence.
-    NLI models are severely overconfident before calibration; ambiguity-aware methods substantially correct this.
-  }
-  \label{fig:reliability-chaosnli-summary}
+  \includegraphics[width=\linewidth]{figs/fig_reliability_cifar_vit.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — CIFAR-10H ViT-B/16.}}
+  \label{fig:reliability-cifar-vit-sum}
 \end{figure}
-
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_cifar.pdf}
-  \caption{
-    \textbf{Reliability diagrams — all methods — CIFAR-10H ResNet-50 (ECE$_\text{true}$).}
-    Red shading = overconfident; green = underconfident.
-    Top row: voted-label baselines (Uncal, TS, Platt, Dir.-Hard, HB-Hard).
-    Middle row: annotation-free (LS-TS) and temperature-based soft methods (SLTS, MCTS, SoftPlatt, VS).
-    Bottom row: non-parametric/matrix soft methods (Dir.-Soft, HB-Soft, IR-Soft).
-    Baselines are substantially overconfident; soft methods align closely with the diagonal.
-  }
-  \label{fig:reliability-cifar}
+  \caption{\textbf{Reliability diagrams (all methods) — CIFAR-10H ResNet-50 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-cifar}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_cifar_vit.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — CIFAR-10H ViT-B/16 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-cifar-vit}
 \end{figure}
 
-\begin{figure}[h]
+\clearpage
+\subsection*{ChaosNLI}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_chaosnli_deberta.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — ChaosNLI DeBERTa-v3-base.}}
+  \label{fig:reliability-chaosnli-deberta-sum}
+\end{figure}
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_chaosnli.pdf}
-  \caption{
-    \textbf{Reliability diagrams — all methods — ChaosNLI RoBERTa-Large (ECE$_\text{true}$).}
-    Same layout as Figure~\ref{fig:reliability-cifar}.
-    NLI models are severely overconfident before calibration; ambiguity-aware methods substantially correct this.
-  }
-  \label{fig:reliability-chaosnli}
+  \caption{\textbf{Reliability diagrams (all methods) — ChaosNLI RoBERTa-Large (ECE$_\text{true}$).}
+    NLI models are severely overconfident before calibration; ambiguity-aware methods substantially correct this.}
+  \label{fig:reliability-full-chaosnli}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_chaosnli_deberta.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — ChaosNLI DeBERTa-v3-base (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-chaosnli-deberta}
 \end{figure}
 
-The diagrams confirm the quantitative results in Tables~\ref{tab:cifar}--\ref{tab:derm}: TS reduces overconfidence relative to \emph{Uncal} but leaves a large residual gap because it targets voted labels.  Dirichlet-Hard performs similarly to TS and sometimes worse, confirming that the problem lies in the target, not model capacity.  All soft methods substantially close the gap, with IR-Soft and Dir.-Soft achieving the most uniform residuals.
+\clearpage
+\subsection*{ISIC 2019}
 
-\section{DermaMNIST: Supplementary Skin Disease Experiment}
-\label{app:dermamnist}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_isic_enet.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — ISIC 2019 EfficientNet-B4.}}
+  \label{fig:reliability-isic-enet-sum}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_isic_vit.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — ISIC 2019 ViT-S/16.}}
+  \label{fig:reliability-isic-vit-sum}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_isic_enet.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — ISIC 2019 EfficientNet-B4 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-isic-enet}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_isic_vit.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — ISIC 2019 ViT-S/16 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-isic-vit}
+\end{figure}
 
-See Section~\ref{sec:dermamnist} and Table~\ref{tab:derm} in the main text.
+\clearpage
+\subsection*{DermaMNIST}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_derm_r18.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — DermaMNIST ResNet-18.}}
+  \label{fig:reliability-derm-r18-sum}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_derm_vit.pdf}
+  \caption{\textbf{Reliability diagrams (summary) — DermaMNIST ViT-S/16.}}
+  \label{fig:reliability-derm-vit-sum}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_derm_r18.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — DermaMNIST ResNet-18 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-derm-r18}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_reliability_full_derm_vit.pdf}
+  \caption{\textbf{Reliability diagrams (all methods) — DermaMNIST ViT-S/16 (ECE$_\text{true}$).}}
+  \label{fig:reliability-full-derm-vit}
+\end{figure}
+
+\bigskip
+The diagrams confirm the quantitative results in Tables~\ref{tab:cifar}--\ref{tab:derm}: TS reduces overconfidence relative to \emph{Uncal} but leaves a large residual gap because it targets voted labels.  Dirichlet-Hard performs similarly to TS and sometimes worse, confirming that the problem lies in the target, not model capacity.  All soft methods substantially close the gap, with IR-Soft and Dir.-Soft achieving the most uniform residuals across all benchmarks.
+
+\clearpage
 \section{ISIC 2019 Annotator Confusion Matrix}
 \label{app:isic-confusion}
 
@@ -748,16 +951,16 @@ $\bar{C}_{ii} = 75\%$, matching the aggregate inter-reader agreement reported
 by \citet{liu2020deep} exactly.
 
 \paragraph{Simulation procedure.}
-For each test image $x_i$ with consensus label $y_i$, we independently draw $K=9$
+For each test image $x_i$ with consensus label $y_i$, we independently draw $m=9$
 synthetic annotations from the categorical distribution defined by row $y_i$ of
 $C$:
 \[
   a^{(k)}_i \sim \mathrm{Categorical}\!\left(C_{y_i,\cdot}\right),
-  \quad k = 1,\ldots,K,
+  \quad k = 1,\ldots,m,
 \]
-    and set the empirical label distribution to:
-$\pi(x_i) = \frac{1}{K}\sum_{k=1}^K \mathbf{e}_{a^{(k)}_i}$.
-This directly mirrors the $K=9$ board-certified dermatologist annotation protocol of
+and set the empirical label distribution to
+$\pi(x_i) = \frac{1}{m}\sum_{k=1}^m \mathbf{e}_{a^{(k)}_i}$.
+This directly mirrors the $m=9$ board-certified dermatologist annotation protocol of
 \citet{liu2020deep}, whose reader study we cannot fully replicate due to data
 unavailability.  The resulting mean annotation entropy over the ISIC 2019 test set
 is $\bar{H}=0.66$, reflecting the genuine diagnostic difficulty of the 8-class task.
@@ -769,7 +972,7 @@ The MEL/NV cluster (orange dashed box) and the AK/BKL/SCC high-confusion
 cluster (purple dotted highlights) are visually prominent.  DF and VL have
 near-perfect diagonal entries and negligible off-diagonal mass.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.82\linewidth]{figs/isic_confusion.pdf}
   \caption{
@@ -816,11 +1019,7 @@ Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusio
   \end{tabular}
 \end{table}
 
-\section{Extended Results}
-\label{app:extended}
-
-See Tables~\ref{tab:cifar}--\ref{tab:derm} in the main text.
-
+\clearpage
 \section{Implementation Details}
 \label{app:impl}
 

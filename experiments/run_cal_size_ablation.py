@@ -5,7 +5,7 @@ Fixes annotation count at the full amount, and varies the fraction of
 calibration data used (10%..100%). Measures how many calibration examples
 are needed for each method to converge.
 
-Datasets supported: cifar10h, chaosnli
+Datasets supported: cifar10h, chaosnli, isic2019, dermamnist
 Methods: TS, SLTS, VS, Dirichlet-Soft, IR-Soft
 
 Usage
@@ -13,6 +13,8 @@ Usage
     python run_cal_size_ablation.py --dataset cifar10h --arch resnet50
     python run_cal_size_ablation.py --dataset cifar10h --arch vit_b16
     python run_cal_size_ablation.py --dataset chaosnli --arch roberta_large
+    python run_cal_size_ablation.py --dataset isic2019 --arch efficientnet_b4
+    python run_cal_size_ablation.py --dataset dermamnist --arch resnet18
 """
 
 from __future__ import annotations
@@ -40,6 +42,42 @@ from calibration import (
 from metrics import compute_all_metrics
 from run_cifar10h import download_cifar10h, get_cifar10_testset
 from run_chaosnli import download_chaosnli, parse_chaosnli
+
+
+CONFUSION_ISIC = np.array([
+    [0.73, 0.14, 0.02, 0.03, 0.08, 0.00, 0.00, 0.00],  # MEL
+    [0.15, 0.76, 0.01, 0.01, 0.06, 0.01, 0.00, 0.00],  # NV
+    [0.02, 0.01, 0.81, 0.05, 0.07, 0.01, 0.01, 0.02],  # BCC
+    [0.03, 0.01, 0.04, 0.65, 0.11, 0.00, 0.00, 0.16],  # AK
+    [0.12, 0.05, 0.03, 0.10, 0.62, 0.00, 0.00, 0.08],  # BKL
+    [0.01, 0.02, 0.02, 0.01, 0.02, 0.87, 0.03, 0.02],  # DF
+    [0.00, 0.01, 0.02, 0.01, 0.01, 0.02, 0.91, 0.02],  # VL
+    [0.01, 0.01, 0.03, 0.18, 0.09, 0.00, 0.01, 0.67],  # SCC
+], dtype=np.float64)
+
+CONFUSION_DERM = np.array([
+    [0.62, 0.07, 0.16, 0.02, 0.07, 0.05, 0.01],  # AK
+    [0.07, 0.73, 0.09, 0.03, 0.04, 0.03, 0.01],  # BCC
+    [0.12, 0.06, 0.62, 0.05, 0.08, 0.06, 0.01],  # BKL
+    [0.02, 0.03, 0.04, 0.83, 0.03, 0.04, 0.01],  # DF
+    [0.04, 0.04, 0.07, 0.02, 0.63, 0.19, 0.01],  # Mel
+    [0.03, 0.02, 0.06, 0.04, 0.14, 0.70, 0.01],  # NV
+    [0.01, 0.01, 0.02, 0.02, 0.01, 0.01, 0.92],  # Vasc
+], dtype=np.float64)
+
+
+def generate_soft_labels(hard_labels, n_annotators, confusion_matrix, seed=42):
+    rng = np.random.default_rng(seed)
+    N = len(hard_labels)
+    K = confusion_matrix.shape[0]
+    soft = np.zeros((N, K), dtype=np.float32)
+    for i, y in enumerate(hard_labels):
+        probs = confusion_matrix[y]
+        annotations = rng.choice(K, size=n_annotators, p=probs)
+        for a in annotations:
+            soft[i, a] += 1.0
+        soft[i] /= n_annotators
+    return soft
 
 
 METHOD_ORDER = ["TS", "LS-TS", "SLTS", "VS", "Dirichlet-Soft", "IR-Soft"]
@@ -204,6 +242,53 @@ def load_chaosnli_data(cache_dir: Path, arch: str, seed: int):
     )
 
 
+def load_isic2019_data(cache_dir: Path, arch: str, seed: int):
+    """Load ISIC 2019 with fixed val/test split. Returns full arrays + pre-split indices."""
+    logits_cal = np.load(cache_dir / f"isic2019_logits_val_{arch}.npy")
+    logits_te = np.load(cache_dir / f"isic2019_logits_test_{arch}.npy")
+    hard_cal = np.load(cache_dir / "isic2019_labels_val.npy")
+    hard_te = np.load(cache_dir / "isic2019_labels_test.npy")
+    soft_cal = generate_soft_labels(hard_cal, 9, CONFUSION_ISIC, seed=seed)
+    soft_te = generate_soft_labels(hard_te, 9, CONFUSION_ISIC, seed=seed)
+
+    # Concatenate into "all" arrays with cal/test index arrays for compatibility
+    N_cal = len(hard_cal)
+    N_te = len(hard_te)
+    logits_all = np.concatenate([logits_cal, logits_te], axis=0)
+    hard_all = np.concatenate([hard_cal, hard_te], axis=0)
+    soft_all = np.concatenate([soft_cal, soft_te], axis=0)
+    idx_cal = np.arange(N_cal)
+    idx_te = np.arange(N_cal, N_cal + N_te)
+    rng = np.random.default_rng(seed)
+    return (logits_all, hard_all, soft_all, idx_cal, idx_te, rng)
+
+
+def load_dermamnist_data(cache_dir: Path, arch: str, seed: int):
+    """Load DermaMNIST with fixed val/test split. Returns full arrays + pre-split indices."""
+    import sys
+    sys.path.insert(0, str(cache_dir.parent))
+    from medmnist import DermaMNIST as DermaMNISTDS
+    ds_val = DermaMNISTDS(split="val", download=True, root=str(cache_dir))
+    ds_te = DermaMNISTDS(split="test", download=True, root=str(cache_dir))
+    hard_cal = ds_val.labels.flatten().astype(int)
+    hard_te = ds_te.labels.flatten().astype(int)
+
+    logits_cal = np.load(cache_dir / f"dermamnist_logits_val_{arch}.npy")
+    logits_te = np.load(cache_dir / f"dermamnist_logits_test_{arch}.npy")
+    soft_cal = generate_soft_labels(hard_cal, 5, CONFUSION_DERM, seed=seed)
+    soft_te = generate_soft_labels(hard_te, 5, CONFUSION_DERM, seed=seed)
+
+    N_cal = len(hard_cal)
+    N_te = len(hard_te)
+    logits_all = np.concatenate([logits_cal, logits_te], axis=0)
+    hard_all = np.concatenate([hard_cal, hard_te], axis=0)
+    soft_all = np.concatenate([soft_cal, soft_te], axis=0)
+    idx_cal = np.arange(N_cal)
+    idx_te = np.arange(N_cal, N_cal + N_te)
+    rng = np.random.default_rng(seed)
+    return (logits_all, hard_all, soft_all, idx_cal, idx_te, rng)
+
+
 def make_plot(results: dict, out_pdf: Path, out_png: Path):
     plt.rcParams.update({
         "font.family": "serif",
@@ -243,7 +328,7 @@ def make_plot(results: dict, out_pdf: Path, out_png: Path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", choices=["cifar10h", "chaosnli"], default="cifar10h")
+    p.add_argument("--dataset", choices=["cifar10h", "chaosnli", "isic2019", "dermamnist"], default="cifar10h")
     p.add_argument("--arch", default="resnet50")
     p.add_argument("--fractions", nargs="+", type=float, default=DEFAULT_FRACTIONS)
     p.add_argument("--cache-dir", default="experiments/cache")
@@ -266,9 +351,17 @@ def main():
     if args.dataset == "cifar10h":
         logits_all, hard_labels_all, soft_labels_all, idx_cal, idx_te, rng = \
             load_cifar10h_data(cache_dir, args.arch, args.seed)
-    else:
+    elif args.dataset == "chaosnli":
         logits_all, hard_labels_all, soft_labels_all, idx_cal, idx_te, rng = \
             load_chaosnli_data(cache_dir, args.arch, args.seed)
+    elif args.dataset == "isic2019":
+        logits_all, hard_labels_all, soft_labels_all, idx_cal, idx_te, rng = \
+            load_isic2019_data(cache_dir, args.arch, args.seed)
+    elif args.dataset == "dermamnist":
+        logits_all, hard_labels_all, soft_labels_all, idx_cal, idx_te, rng = \
+            load_dermamnist_data(cache_dir, args.arch, args.seed)
+    else:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
 
     logits_te = logits_all[idx_te]
     labels_hard_te = hard_labels_all[idx_te]

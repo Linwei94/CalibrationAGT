@@ -1,16 +1,19 @@
 """
 Multi-seed statistical significance analysis.
 
-Re-runs calibration with 5 different random seeds (affecting the cal/test split)
+Re-runs calibration with 5 different random seeds (affecting the cal/test split
+for cifar10h/chaosnli, or annotation generation seed for isic2019/dermamnist)
 and reports mean ± std of ECE_true for key methods.
 
-Datasets: cifar10h, chaosnli
+Datasets: cifar10h, chaosnli, isic2019, dermamnist
 Methods: TS, SLTS, Dirichlet-Soft, IR-Soft
 
 Usage
 -----
     python run_multiseed.py --dataset cifar10h --arch resnet50
     python run_multiseed.py --dataset chaosnli --arch roberta_large
+    python run_multiseed.py --dataset isic2019 --arch efficientnet_b4
+    python run_multiseed.py --dataset dermamnist --arch resnet18
 """
 
 from __future__ import annotations
@@ -36,6 +39,67 @@ from calibration import (
 from metrics import compute_all_metrics
 from run_chaosnli import download_chaosnli, parse_chaosnli
 from run_cifar10h import download_cifar10h, get_cifar10_testset
+
+
+CONFUSION_ISIC = np.array([
+    [0.73, 0.14, 0.02, 0.03, 0.08, 0.00, 0.00, 0.00],
+    [0.15, 0.76, 0.01, 0.01, 0.06, 0.01, 0.00, 0.00],
+    [0.02, 0.01, 0.81, 0.05, 0.07, 0.01, 0.01, 0.02],
+    [0.03, 0.01, 0.04, 0.65, 0.11, 0.00, 0.00, 0.16],
+    [0.12, 0.05, 0.03, 0.10, 0.62, 0.00, 0.00, 0.08],
+    [0.01, 0.02, 0.02, 0.01, 0.02, 0.87, 0.03, 0.02],
+    [0.00, 0.01, 0.02, 0.01, 0.01, 0.02, 0.91, 0.02],
+    [0.01, 0.01, 0.03, 0.18, 0.09, 0.00, 0.01, 0.67],
+], dtype=np.float64)
+
+CONFUSION_DERM = np.array([
+    [0.62, 0.07, 0.16, 0.02, 0.07, 0.05, 0.01],  # AK
+    [0.07, 0.73, 0.09, 0.03, 0.04, 0.03, 0.01],  # BCC
+    [0.12, 0.06, 0.62, 0.05, 0.08, 0.06, 0.01],  # BKL
+    [0.02, 0.03, 0.04, 0.83, 0.03, 0.04, 0.01],  # DF
+    [0.04, 0.04, 0.07, 0.02, 0.63, 0.19, 0.01],  # Mel
+    [0.03, 0.02, 0.06, 0.04, 0.14, 0.70, 0.01],  # NV
+    [0.01, 0.01, 0.02, 0.02, 0.01, 0.01, 0.92],  # Vasc
+], dtype=np.float64)
+
+
+def generate_soft_labels(hard_labels, n_annotators, confusion_matrix, seed=42):
+    rng = np.random.default_rng(seed)
+    N = len(hard_labels)
+    K = confusion_matrix.shape[0]
+    soft = np.zeros((N, K), dtype=np.float32)
+    for i, y in enumerate(hard_labels):
+        probs = confusion_matrix[y]
+        annotations = rng.choice(K, size=n_annotators, p=probs)
+        for a in annotations:
+            soft[i, a] += 1.0
+        soft[i] /= n_annotators
+    return soft
+
+
+def load_isic_dermamnist_split(cache_dir, dataset, arch, annotation_seed):
+    """Load ISIC2019 or DermaMNIST with fixed val/test split.
+    annotation_seed controls the soft label generation."""
+    if dataset == "isic2019":
+        logits_cal = np.load(cache_dir / f"isic2019_logits_val_{arch}.npy")
+        logits_te = np.load(cache_dir / f"isic2019_logits_test_{arch}.npy")
+        hard_cal = np.load(cache_dir / "isic2019_labels_val.npy")
+        hard_te = np.load(cache_dir / "isic2019_labels_test.npy")
+        soft_cal = generate_soft_labels(hard_cal, 9, CONFUSION_ISIC, seed=annotation_seed)
+        soft_te = generate_soft_labels(hard_te, 9, CONFUSION_ISIC, seed=annotation_seed)
+    else:  # dermamnist
+        import sys
+        sys.path.insert(0, str(cache_dir.parent))
+        from medmnist import DermaMNIST as DermaMNISTDS
+        ds_val = DermaMNISTDS(split="val", download=True, root=str(cache_dir))
+        ds_te = DermaMNISTDS(split="test", download=True, root=str(cache_dir))
+        hard_cal = ds_val.labels.flatten().astype(int)
+        hard_te = ds_te.labels.flatten().astype(int)
+        logits_cal = np.load(cache_dir / f"dermamnist_logits_val_{arch}.npy")
+        logits_te = np.load(cache_dir / f"dermamnist_logits_test_{arch}.npy")
+        soft_cal = generate_soft_labels(hard_cal, 5, CONFUSION_DERM, seed=annotation_seed)
+        soft_te = generate_soft_labels(hard_te, 5, CONFUSION_DERM, seed=annotation_seed)
+    return logits_cal, logits_te, hard_cal, hard_te, soft_cal, soft_te
 
 
 METHOD_ORDER = ["TS", "SLTS", "Dirichlet-Soft", "IR-Soft"]
@@ -168,7 +232,7 @@ def make_plot(results: dict, out_pdf: Path, out_png: Path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", choices=["cifar10h", "chaosnli"], default="cifar10h")
+    p.add_argument("--dataset", choices=["cifar10h", "chaosnli", "isic2019", "dermamnist"], default="cifar10h")
     p.add_argument("--arch", default="resnet50")
     p.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS)
     p.add_argument("--cache-dir", default="experiments/cache")
@@ -186,19 +250,22 @@ def main():
     results_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Load full data once ───────────────────────────────────────────────────
+    # ── Load full data once (for cifar10h/chaosnli) ───────────────────────────
+    is_fixed_split = args.dataset in ("isic2019", "dermamnist")
+
     if args.dataset == "cifar10h":
         soft_labels_all = download_cifar10h(str(cache_dir))
         logits_all = np.load(cache_dir / f"logits_test_{args.arch}.npy")
         testset = get_cifar10_testset(str(cache_dir / "cifar10"))
         hard_labels_all = np.array([y for _, y in testset])
-    else:
+        N = len(hard_labels_all)
+    elif args.dataset == "chaosnli":
         raw_data = download_chaosnli(str(cache_dir), subset="snli") + \
                    download_chaosnli(str(cache_dir), subset="mnli")
         _, soft_labels_all, hard_labels_all = parse_chaosnli(raw_data)
         logits_all = np.load(cache_dir / f"logits_chaosnli_combined_{args.arch}.npy")
-
-    N = len(hard_labels_all)
+        N = len(hard_labels_all)
+    # isic2019 / dermamnist: loaded per-seed in the loop below
 
     # ── Multi-seed loop ───────────────────────────────────────────────────────
     per_seed: dict[int, dict[str, float]] = {}
@@ -208,18 +275,28 @@ def main():
         print(f"  Seed = {seed}")
         print(f"{'='*50}")
 
-        if args.dataset == "cifar10h":
+        if is_fixed_split:
+            logits_cal, logits_te, labels_hard_cal, labels_hard_te, labels_soft_cal, labels_soft_te = \
+                load_isic_dermamnist_split(cache_dir, args.dataset, args.arch, annotation_seed=seed)
+            probs_cal = torch.softmax(torch.tensor(logits_cal), dim=1).numpy()
+        elif args.dataset == "cifar10h":
             idx_cal, idx_te = make_split_cifar10h(logits_all, hard_labels_all, soft_labels_all, seed)
-        else:
+            logits_cal = logits_all[idx_cal]
+            logits_te = logits_all[idx_te]
+            probs_cal = torch.softmax(torch.tensor(logits_cal), dim=1).numpy()
+            labels_hard_cal = hard_labels_all[idx_cal]
+            labels_soft_cal = soft_labels_all[idx_cal]
+            labels_hard_te = hard_labels_all[idx_te]
+            labels_soft_te = soft_labels_all[idx_te]
+        else:  # chaosnli
             idx_cal, idx_te = make_split_chaosnli(hard_labels_all, N, seed)
-
-        logits_cal = logits_all[idx_cal]
-        logits_te = logits_all[idx_te]
-        probs_cal = torch.softmax(torch.tensor(logits_cal), dim=1).numpy()
-        labels_hard_cal = hard_labels_all[idx_cal]
-        labels_soft_cal = soft_labels_all[idx_cal]
-        labels_hard_te = hard_labels_all[idx_te]
-        labels_soft_te = soft_labels_all[idx_te]
+            logits_cal = logits_all[idx_cal]
+            logits_te = logits_all[idx_te]
+            probs_cal = torch.softmax(torch.tensor(logits_cal), dim=1).numpy()
+            labels_hard_cal = hard_labels_all[idx_cal]
+            labels_soft_cal = soft_labels_all[idx_cal]
+            labels_hard_te = hard_labels_all[idx_te]
+            labels_soft_te = soft_labels_all[idx_te]
 
         per_seed[seed] = {}
         for method in METHOD_ORDER:

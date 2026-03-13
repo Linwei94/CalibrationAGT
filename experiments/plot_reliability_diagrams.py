@@ -5,12 +5,14 @@ Produces two figures per dataset/arch:
   (1) 1×5 summary panel: Uncal / TS / SLTS / Dirichlet-Soft / IR-Soft
   (2) 3×5 full panel:    all 13 methods (hard-label, annotation-free, soft)
 
-Datasets: cifar10h (resnet50, vit_b16), chaosnli (roberta_large, deberta_v3)
+Datasets: cifar10h, chaosnli, isic2019, dermamnist
 
 Usage
 -----
     python plot_reliability_diagrams.py --dataset cifar10h --arch resnet50
     python plot_reliability_diagrams.py --dataset chaosnli --arch roberta_large
+    python plot_reliability_diagrams.py --dataset isic2019 --arch efficientnet_b4
+    python plot_reliability_diagrams.py --dataset dermamnist --arch resnet18
 """
 
 from __future__ import annotations
@@ -41,6 +43,42 @@ from calibration import (
 )
 from run_chaosnli import download_chaosnli, parse_chaosnli
 from run_cifar10h import download_cifar10h, get_cifar10_testset
+
+
+CONFUSION_ISIC = np.array([
+    [0.73, 0.14, 0.02, 0.03, 0.08, 0.00, 0.00, 0.00],
+    [0.15, 0.76, 0.01, 0.01, 0.06, 0.01, 0.00, 0.00],
+    [0.02, 0.01, 0.81, 0.05, 0.07, 0.01, 0.01, 0.02],
+    [0.03, 0.01, 0.04, 0.65, 0.11, 0.00, 0.00, 0.16],
+    [0.12, 0.05, 0.03, 0.10, 0.62, 0.00, 0.00, 0.08],
+    [0.01, 0.02, 0.02, 0.01, 0.02, 0.87, 0.03, 0.02],
+    [0.00, 0.01, 0.02, 0.01, 0.01, 0.02, 0.91, 0.02],
+    [0.01, 0.01, 0.03, 0.18, 0.09, 0.00, 0.01, 0.67],
+], dtype=np.float64)
+
+CONFUSION_DERM = np.array([
+    [0.62, 0.07, 0.16, 0.02, 0.07, 0.05, 0.01],  # AK
+    [0.07, 0.73, 0.09, 0.03, 0.04, 0.03, 0.01],  # BCC
+    [0.12, 0.06, 0.62, 0.05, 0.08, 0.06, 0.01],  # BKL
+    [0.02, 0.03, 0.04, 0.83, 0.03, 0.04, 0.01],  # DF
+    [0.04, 0.04, 0.07, 0.02, 0.63, 0.19, 0.01],  # Mel
+    [0.03, 0.02, 0.06, 0.04, 0.14, 0.70, 0.01],  # NV
+    [0.01, 0.01, 0.02, 0.02, 0.01, 0.01, 0.92],  # Vasc
+], dtype=np.float64)
+
+
+def _generate_soft_labels(hard_labels, n_annotators, confusion_matrix, seed=42):
+    rng = np.random.default_rng(seed)
+    N = len(hard_labels)
+    K = confusion_matrix.shape[0]
+    soft = np.zeros((N, K), dtype=np.float32)
+    for i, y in enumerate(hard_labels):
+        probs = confusion_matrix[y]
+        annotations = rng.choice(K, size=n_annotators, p=probs)
+        for a in annotations:
+            soft[i, a] += 1.0
+        soft[i] /= n_annotators
+    return soft
 
 
 # ── Colour palette (copied from figures/generate_all.py) ─────────────────────
@@ -153,7 +191,12 @@ def load_split(cache_dir, dataset, arch, seed):
             te_parts.append(perm[cut:])
         idx_cal = np.sort(np.concatenate(cal_parts))
         idx_te = np.sort(np.concatenate(te_parts))
-    else:
+        return (
+            logits_all[idx_cal], logits_all[idx_te],
+            hard_all[idx_cal], hard_all[idx_te],
+            soft_all[idx_cal], soft_all[idx_te],
+        )
+    elif dataset == "chaosnli":
         raw = download_chaosnli(str(cache_dir), "snli") + download_chaosnli(str(cache_dir), "mnli")
         _, soft_all, hard_all = parse_chaosnli(raw)
         logits_all = np.load(cache_dir / f"logits_chaosnli_combined_{arch}.npy")
@@ -165,12 +208,34 @@ def load_split(cache_dir, dataset, arch, seed):
             c_idx = idx[hard_all == c]
             mask[rng.choice(c_idx, size=len(c_idx) // 2, replace=False)] = True
         idx_cal, idx_te = idx[mask], idx[~mask]
-
-    return (
-        logits_all[idx_cal], logits_all[idx_te],
-        hard_all[idx_cal], hard_all[idx_te],
-        soft_all[idx_cal], soft_all[idx_te],
-    )
+        return (
+            logits_all[idx_cal], logits_all[idx_te],
+            hard_all[idx_cal], hard_all[idx_te],
+            soft_all[idx_cal], soft_all[idx_te],
+        )
+    elif dataset == "isic2019":
+        logits_cal = np.load(cache_dir / f"isic2019_logits_val_{arch}.npy")
+        logits_te = np.load(cache_dir / f"isic2019_logits_test_{arch}.npy")
+        hard_cal = np.load(cache_dir / "isic2019_labels_val.npy")
+        hard_te = np.load(cache_dir / "isic2019_labels_test.npy")
+        soft_cal = _generate_soft_labels(hard_cal, 9, CONFUSION_ISIC, seed=seed)
+        soft_te = _generate_soft_labels(hard_te, 9, CONFUSION_ISIC, seed=seed)
+        return (logits_cal, logits_te, hard_cal, hard_te, soft_cal, soft_te)
+    elif dataset == "dermamnist":
+        import sys as _sys
+        _sys.path.insert(0, str(cache_dir.parent))
+        from medmnist import DermaMNIST as _DermaMNISTDS
+        ds_val = _DermaMNISTDS(split="val", download=True, root=str(cache_dir))
+        ds_te = _DermaMNISTDS(split="test", download=True, root=str(cache_dir))
+        hard_cal = ds_val.labels.flatten().astype(int)
+        hard_te = ds_te.labels.flatten().astype(int)
+        logits_cal = np.load(cache_dir / f"dermamnist_logits_val_{arch}.npy")
+        logits_te = np.load(cache_dir / f"dermamnist_logits_test_{arch}.npy")
+        soft_cal = _generate_soft_labels(hard_cal, 5, CONFUSION_DERM, seed=seed)
+        soft_te = _generate_soft_labels(hard_te, 5, CONFUSION_DERM, seed=seed)
+        return (logits_cal, logits_te, hard_cal, hard_te, soft_cal, soft_te)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
 
 
 # ── Fit all calibrators ───────────────────────────────────────────────────────
@@ -293,7 +358,7 @@ def plot_full(all_probs, soft_te, dataset, arch, n_bins, figures_dir, suffix):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", choices=["cifar10h", "chaosnli"], default="cifar10h")
+    p.add_argument("--dataset", choices=["cifar10h", "chaosnli", "isic2019", "dermamnist"], default="cifar10h")
     p.add_argument("--arch", default="resnet50")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--n-bins", type=int, default=12)
