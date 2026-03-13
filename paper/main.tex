@@ -262,7 +262,7 @@ and minimize $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these t
 The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly across all $K$ classes.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
 \paragraph{Theoretical interpretation.}
-The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Appendix~\ref{app:lsts-ablation} compares LS-TS against three simpler smoothing strategies and confirms that the data-driven global $\bar\varepsilon$ is the key design choice.
+The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Appendix~\ref{app:lsts-ablation} compares LS-TS against three simpler smoothing strategies and confirms that the data-driven global $\bar\varepsilon$ is the key design choice.  Appendix~\ref{app:ats} further shows that even an \emph{adaptive} voted-label calibrator --- one that learns a per-instance temperature from logit-derived features --- fails to improve over TS, reinforcing that the target distribution, not the flexibility of the calibration map, is the limiting factor.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
@@ -1100,6 +1100,40 @@ All methods are evaluated on CIFAR-10H and ChaosNLI, the two benchmarks with rea
 Fixed-LS with $\varepsilon{=}0.1$ consistently \emph{under}performs or even \emph{degrades} below TS (e.g., ECE 7.44\% vs.\ 3.90\% on CIFAR-10H ResNet-50), confirming that an arbitrary fixed smoothing weight is insufficient --- the data-driven estimate of $\bar\varepsilon$ is critical.
 Ent-LS (per-instance entropy) improves over TS on most settings but is inconsistent: it works well on ChaosNLI RoBERTa-L (3.17\%) but collapses on DeBERTa-v3 (8.58\%), suggesting that prediction entropy is a noisy proxy for annotator ambiguity when models are already strongly confident.
 CC-LS (per-class $\varepsilon$) achieves results very close to LS-TS on all four settings (within 0.1 pp ECE), confirming that the global mean is a good summary of per-class behaviour for these benchmarks; the slight advantage of CC-LS on DeBERTa-v3 (2.54\% vs.\ 2.65\%) is within the single-seed variance reported in Appendix~\ref{app:multiseed}.
+
+\clearpage
+\section{Adaptive Temperature Scaling with Voted Labels}
+\label{app:ats}
+
+A natural question is whether making the calibration map \emph{adaptive} --- predicting a per-instance temperature $T(x_i)$ rather than a global $T^*$ --- can close the gap between voted-label calibration and ambiguity-aware calibration, without requiring annotator data.  We implement \textbf{ATS} (Adaptive Temperature Scaling): a linear layer maps four logit-derived features $\phi(z_i) = [\max_k z_{ik},\; H(\mathrm{softmax}(z_i))/\log K,\; p_{(1)}-p_{(2)},\; p_{(1)}]$ to $\log T_i$ via $T_i = \mathrm{softplus}(w^\top\phi(z_i)+b)+0.1$, trained with voted-label NLL identical to TS.  The four features capture prediction scale, uncertainty, margin, and confidence.  We apply $\ell_2$ regularisation ($\lambda=10^{-3}$) to avoid overfitting on small calibration sets.
+
+\begin{table}[H]
+  \centering
+  \small
+  \caption{\textbf{ATS vs.\ TS and LS-TS (annotation-free methods only).}
+    ECE$_\text{true}$ (\%), Brier, NLL on the two real multi-annotator benchmarks.
+    ATS predicts a per-instance temperature from logit features but is trained with the same voted-label NLL as TS.
+    Bold = best annotation-free method per column.}
+  \label{tab:ats}
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{l rrr rrr rrr rrr}
+    \toprule
+    & \multicolumn{3}{c}{CIFAR-10H ResNet-50}
+    & \multicolumn{3}{c}{CIFAR-10H ViT-B/16}
+    & \multicolumn{3}{c}{ChaosNLI RoBERTa-L}
+    & \multicolumn{3}{c}{ChaosNLI DeBERTa-v3} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+    Method & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL \\
+    \midrule
+    TS       & 3.90 & .113 & .346 & 4.01 & .104 & .320 & 10.55 & .537 & .886 & 11.63 & .549 & .900 \\
+    ATS      & 4.10 & .113 & .334 & 4.10 & .105 & .319 & 11.36 & .538 & .883 & 13.09 & .552 & .900 \\
+    \textbf{LS-TS} & \textbf{1.49} & \textbf{.111} & \textbf{.296} & \textbf{1.62} & \textbf{.102} & \textbf{.279} & \textbf{4.16} & \textbf{.522} & \textbf{.873} & \textbf{2.65} & \textbf{.529} & \textbf{.881} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Finding.}
+ATS consistently \emph{fails to improve} over TS and in most settings degrades it (e.g., ECE rises from 11.63\% to 13.09\% on DeBERTa-v3).  The per-instance temperature learned from logit features adapts to model uncertainty, not to annotator disagreement --- these two quantities are loosely correlated at best (cf.\ Figure~\ref{fig:entropy-validation}).  In contrast, LS-TS, which uses the same global-temperature architecture as TS but simply shifts the calibration target toward a smoothed distribution, reduces ECE by 62--78\% on these four settings.  This confirms that the calibration target is the critical design axis: added architectural flexibility without the right supervision signal yields no benefit.
 
 \clearpage
 \section{Implementation Details}

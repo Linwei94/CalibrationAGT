@@ -610,6 +610,114 @@ class ClassCondLabelSmoothTS(nn.Module):
         return self.temperature.item()
 
 
+class AdaptiveTempScaling(nn.Module):
+    """
+    Adaptive Temperature Scaling (ATS).
+
+    Learns a per-instance temperature T(z_i) from four logit-derived features:
+        φ(z) = [max_logit, H(softmax(z))/log K, top1−top2 prob gap, max_prob]
+    T(z) = softplus(w·φ(z) + b) + 0.1   (linear map, 5 parameters total)
+
+    Annotation-free: trained with voted-label NLL, like TS.
+    At test time, T is predicted from each example's own logits.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(4, 1)
+        nn.init.zeros_(self.linear.weight)
+        nn.init.constant_(self.linear.bias, 0.4)  # softplus(0.4)+0.1 ≈ 1.1 init
+
+    @staticmethod
+    def _features(logits: torch.Tensor) -> torch.Tensor:
+        """Compute 4 scalar features per example; result detached from logit grad."""
+        with torch.no_grad():
+            K     = logits.shape[1]
+            p     = torch.softmax(logits, dim=1)
+            s, _  = p.sort(dim=1, descending=True)
+            feat  = torch.stack([
+                logits.max(dim=1).values,                    # max logit
+                -(p * (p + 1e-9).log()).sum(1) / np.log(K), # norm entropy
+                s[:, 0] - s[:, 1],                           # top1-top2 gap
+                s[:, 0],                                     # max prob
+            ], dim=1)
+        return feat.detach()
+
+    def get_temperatures(self, logits: torch.Tensor) -> torch.Tensor:
+        """Return per-instance temperatures (N,)."""
+        feat = self._features(logits)
+        return torch.nn.functional.softplus(self.linear(feat).squeeze(1)) + 0.1
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        T = self.get_temperatures(logits)
+        return logits / T.unsqueeze(1).clamp(min=1e-3)
+
+    def fit(self, logits: torch.Tensor, labels_hard: torch.Tensor,
+            l2: float = 1e-3, n_epochs: int = 500) -> "AdaptiveTempScaling":
+        feat = self._features(logits)
+        crit = nn.CrossEntropyLoss()
+        opt  = torch.optim.Adam(self.parameters(), lr=5e-3)
+        for _ in range(n_epochs):
+            opt.zero_grad()
+            T   = torch.nn.functional.softplus(self.linear(feat).squeeze(1)) + 0.1
+            loss = crit(logits / T.unsqueeze(1), labels_hard)
+            loss += l2 * (self.linear.weight ** 2).sum()
+            loss.backward()
+            opt.step()
+        return self
+
+    @property
+    def T(self) -> float:
+        return float("nan")  # per-instance; no single global T
+
+    def mean_T(self, logits: torch.Tensor) -> float:
+        return self.get_temperatures(logits).mean().item()
+
+
+class AdaptiveSoftLabelTS(nn.Module):
+    """
+    Adaptive Soft-Label Temperature Scaling (ATS-Soft).
+
+    Same per-instance T(z_i) architecture as AdaptiveTempScaling but trained
+    with KL divergence against soft annotator targets — requires annotator data.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(4, 1)
+        nn.init.zeros_(self.linear.weight)
+        nn.init.constant_(self.linear.bias, 0.4)
+
+    def get_temperatures(self, logits: torch.Tensor) -> torch.Tensor:
+        feat = AdaptiveTempScaling._features(logits)
+        return torch.nn.functional.softplus(self.linear(feat).squeeze(1)) + 0.1
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        T = self.get_temperatures(logits)
+        return logits / T.unsqueeze(1).clamp(min=1e-3)
+
+    def fit(self, logits: torch.Tensor, labels_soft: torch.Tensor,
+            l2: float = 1e-3, n_epochs: int = 500) -> "AdaptiveSoftLabelTS":
+        feat = AdaptiveTempScaling._features(logits)
+        opt  = torch.optim.Adam(self.parameters(), lr=5e-3)
+        for _ in range(n_epochs):
+            opt.zero_grad()
+            T     = torch.nn.functional.softplus(self.linear(feat).squeeze(1)) + 0.1
+            log_p = torch.log_softmax(logits / T.unsqueeze(1), dim=1)
+            loss  = -(labels_soft * log_p).sum(1).mean()
+            loss += l2 * (self.linear.weight ** 2).sum()
+            loss.backward()
+            opt.step()
+        return self
+
+    @property
+    def T(self) -> float:
+        return float("nan")
+
+    def mean_T(self, logits: torch.Tensor) -> float:
+        return self.get_temperatures(logits).mean().item()
+
+
 class MonteCarloTS(nn.Module):
     """
     Monte Carlo Temperature Scaling (MCTS).
