@@ -173,13 +173,13 @@ A 2-layer MLP (64 hidden units per layer) is trained on voted labels, and all ca
     \textbf{Motivating example: all standard calibration methods fail.}
     \textbf{(a)} Toy dataset generation: only the middle Gaussian cluster is ambiguous, with $\pi=[0,0.70,0.30]$; orange points are drawn as label~1 (70\%) and red points as label~2 (30\%), while all receive the same voted label~1.
     \textbf{(e)} Summary of the toy results: every traditional calibrator lowers $\ECEvoted$ but \emph{increases} $\ECEtrue$, so voted-label evaluation masks the failure.
-    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt scaling, and Histogram Binning: the residual error is concentrated in ambiguous examples for all three traditional methods.
+    \textbf{(f)} Stratified $\ECEtrue$ for TS and Platt scaling: the residual error is concentrated in ambiguous examples for both traditional methods.
   }
   \label{fig:toy}
 \end{figure}
 
 \paragraph{Results.}
-Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the voted-label target.  TS reduces $\ECEvoted$ from $3.25\%$ to $1.11\%$, but \emph{increases} $\ECEtrue$ from $6.26\%$ to $9.64\%$.  Platt scaling behaves similarly ($\ECEvoted=0.68\%$, $\ECEtrue=9.70\%$), and Histogram Binning also lowers voted-label ECE while worsening true-label ECE ($1.32\%$/$9.65\%$).  Figure~\ref{fig:toy}\textbf{(f)} further shows that this residual error is concentrated in the ambiguous cluster for all three traditional methods.  TS sets $T=0.62<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true ambiguous label distribution.  The failure is therefore not specific to TS: standard post-hoc methods are useful for $\ECEvoted$, but the voted-label target makes them ineffective for $\ECEtrue$.
+Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the voted-label target.  TS reduces $\ECEvoted$ from $3.25\%$ to $1.11\%$, but \emph{increases} $\ECEtrue$ from $6.26\%$ to $9.64\%$.  Platt scaling behaves similarly ($\ECEvoted=0.68\%$, $\ECEtrue=9.70\%$).  Figure~\ref{fig:toy}\textbf{(f)} further shows that this residual error is concentrated in the ambiguous cluster for both traditional methods.  TS sets $T=0.62<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true ambiguous label distribution.  The failure is therefore not specific to TS: standard post-hoc methods are useful for $\ECEvoted$, but the voted-label target makes them ineffective for $\ECEtrue$.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Theory: Why Standard Calibration Fails}
@@ -823,7 +823,7 @@ Across all benchmarks and architectures, standard deviations are small relative 
 \label{app:reliability}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are shown in Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} in the main text.  Here we provide the four-method summary panels and full 3$\times$5 panels for all remaining architectures and datasets.  All panels share the same layout: top row = voted-label baselines (Uncal, TS, Platt, Dir.-Hard, HB-Hard); middle row = annotation-free (LS-TS) and temperature-based soft methods (SLTS, MCTS, SoftPlatt, VS); bottom row = non-parametric/matrix soft methods (Dir.-Soft, HB-Soft, IR-Soft).  Red shading = overconfident; green = underconfident.
+Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are shown in Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} in the main text.  Here we provide the four-method summary panels and full panels for all remaining architectures and datasets.  All panels share the same layout: top row = voted-label baselines (Uncal, TS, Platt, Dir.-Hard); middle row = annotation-free (LS-TS) and temperature-based soft methods (SLTS, MCTS, SoftPlatt, VS); bottom row = non-parametric/matrix soft methods (Dir.-Soft, IR-Soft).  Red shading = overconfident; green = underconfident.
 
 \clearpage
 \subsection*{CIFAR-10H}
