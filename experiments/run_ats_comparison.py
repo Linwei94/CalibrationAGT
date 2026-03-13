@@ -4,9 +4,10 @@ ATS Comparison: Adaptive Temperature Scaling vs. global baselines.
 Compares on all 8 benchmark settings (4 datasets × 2 architectures):
   - TS         : global T, voted-label target         (annotation-free)
   - LS-TS      : global T, smoothed voted-label target (annotation-free)
-  - ATS-Hard   : per-instance T, voted-label target   (annotation-free)
+  - ATS        : per-instance T, voted-label target   (annotation-free)
   - SLTS       : global T, soft-label target           (requires annotators)
-  - ATS-Soft   : per-instance T, soft-label target     (requires annotators)
+
+Reports ECE, aECE, cwECE, Brier, NLL for each method.
 
 Usage
 -----
@@ -28,14 +29,51 @@ from calibration import (
     LabelSmoothTS,
     SoftLabelTS,
     AdaptiveTempScaling,
-    AdaptiveSoftLabelTS,
     apply_parametric,
 )
 from metrics import compute_all_metrics
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Data loaders (identical split logic to other experiment scripts)
+# Synthetic soft-label generators (match run_dermamnist.py / run_isic2019.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+DERM_CONFUSION = np.array([
+    [0.62, 0.07, 0.16, 0.02, 0.07, 0.05, 0.01],
+    [0.07, 0.73, 0.09, 0.03, 0.04, 0.03, 0.01],
+    [0.12, 0.06, 0.62, 0.05, 0.08, 0.06, 0.01],
+    [0.02, 0.03, 0.04, 0.83, 0.03, 0.04, 0.01],
+    [0.04, 0.04, 0.07, 0.02, 0.63, 0.19, 0.01],
+    [0.03, 0.02, 0.06, 0.04, 0.14, 0.70, 0.01],
+    [0.01, 0.01, 0.02, 0.02, 0.01, 0.01, 0.92],
+], dtype=np.float64)
+
+ISIC_CONFUSION = np.array([
+    [0.73, 0.14, 0.02, 0.03, 0.08, 0.00, 0.00, 0.00],
+    [0.15, 0.76, 0.01, 0.01, 0.06, 0.01, 0.00, 0.00],
+    [0.02, 0.01, 0.81, 0.05, 0.07, 0.01, 0.01, 0.02],
+    [0.03, 0.01, 0.04, 0.65, 0.11, 0.00, 0.00, 0.16],
+    [0.12, 0.05, 0.03, 0.10, 0.62, 0.00, 0.00, 0.08],
+    [0.01, 0.02, 0.02, 0.01, 0.02, 0.87, 0.03, 0.02],
+    [0.00, 0.01, 0.02, 0.01, 0.01, 0.02, 0.91, 0.02],
+    [0.01, 0.01, 0.03, 0.18, 0.09, 0.00, 0.01, 0.67],
+], dtype=np.float64)
+
+
+def generate_soft_labels(hard_labels, confusion, n_annotators, seed):
+    rng = np.random.default_rng(seed)
+    N, K = len(hard_labels), confusion.shape[0]
+    soft = np.zeros((N, K), dtype=np.float32)
+    for i, y in enumerate(hard_labels):
+        anns = rng.choice(K, size=n_annotators, p=confusion[y])
+        for a in anns:
+            soft[i, a] += 1.0
+        soft[i] /= n_annotators
+    return soft
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data loaders
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_cifar10h(cache_dir, arch, seed):
@@ -93,39 +131,28 @@ def load_chaosnli(cache_dir, arch, seed):
 
 
 def load_dermamnist(cache_dir, arch, seed):
-    logits_all = np.load(Path(cache_dir) / f"logits_dermamnist_{arch}.npy")
-    soft_all   = np.load(Path(cache_dir) / f"soft_labels_dermamnist_{arch}.npy").astype(np.float32)
-    hard_all   = soft_all.argmax(axis=1)
-    N, K       = logits_all.shape
-    rng = np.random.default_rng(seed)
-    idx = np.arange(N)
-    cal_mask = np.zeros(N, dtype=bool)
-    for c in range(K):
-        c_idx = idx[hard_all == c]
-        if len(c_idx) > 0:
-            cal_mask[rng.choice(c_idx, size=max(1, len(c_idx) // 2), replace=False)] = True
-    ic, it = idx[cal_mask], idx[~cal_mask]
-    return (torch.tensor(logits_all[ic], dtype=torch.float32),
-            torch.tensor(logits_all[it], dtype=torch.float32),
-            hard_all[ic], hard_all[it], soft_all[ic], soft_all[it])
+    d          = np.load(Path(cache_dir) / "dermamnist.npz")
+    val_labels = d["val_labels"].flatten().astype(np.int64)
+    te_labels  = d["test_labels"].flatten().astype(np.int64)
+    lc = np.load(Path(cache_dir) / f"dermamnist_logits_val_{arch}.npy")
+    lt = np.load(Path(cache_dir) / f"dermamnist_logits_test_{arch}.npy")
+    ys_c = generate_soft_labels(val_labels, DERM_CONFUSION, n_annotators=5, seed=seed)
+    ys_t = generate_soft_labels(te_labels,  DERM_CONFUSION, n_annotators=5, seed=seed + 1)
+    return (torch.tensor(lc, dtype=torch.float32),
+            torch.tensor(lt, dtype=torch.float32),
+            val_labels, te_labels, ys_c, ys_t)
 
 
 def load_isic2019(cache_dir, arch, seed):
-    logits_all = np.load(Path(cache_dir) / f"logits_isic2019_{arch}.npy")
-    soft_all   = np.load(Path(cache_dir) / f"soft_labels_isic2019_{arch}.npy").astype(np.float32)
-    hard_all   = soft_all.argmax(axis=1)
-    N, K       = logits_all.shape
-    rng = np.random.default_rng(seed)
-    idx = np.arange(N)
-    cal_mask = np.zeros(N, dtype=bool)
-    for c in range(K):
-        c_idx = idx[hard_all == c]
-        if len(c_idx) > 0:
-            cal_mask[rng.choice(c_idx, size=max(1, len(c_idx) // 2), replace=False)] = True
-    ic, it = idx[cal_mask], idx[~cal_mask]
-    return (torch.tensor(logits_all[ic], dtype=torch.float32),
-            torch.tensor(logits_all[it], dtype=torch.float32),
-            hard_all[ic], hard_all[it], soft_all[ic], soft_all[it])
+    val_labels = np.load(Path(cache_dir) / "isic2019_labels_val.npy").astype(np.int64)
+    te_labels  = np.load(Path(cache_dir) / "isic2019_labels_test.npy").astype(np.int64)
+    lc = np.load(Path(cache_dir) / f"isic2019_logits_val_{arch}.npy")
+    lt = np.load(Path(cache_dir) / f"isic2019_logits_test_{arch}.npy")
+    ys_c = generate_soft_labels(val_labels, ISIC_CONFUSION, n_annotators=9, seed=seed)
+    ys_t = generate_soft_labels(te_labels,  ISIC_CONFUSION, n_annotators=9, seed=seed + 1)
+    return (torch.tensor(lc, dtype=torch.float32),
+            torch.tensor(lt, dtype=torch.float32),
+            val_labels, te_labels, ys_c, ys_t)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -133,35 +160,38 @@ def load_isic2019(cache_dir, arch, seed):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_one(lc, lt, yh_c, yh_t, ys_c, ys_t, n_bins, label):
-    yh_c_t  = torch.tensor(yh_c, dtype=torch.long)
-    ys_c_t  = torch.tensor(ys_c, dtype=torch.float32)
+    yh_c_t = torch.tensor(yh_c, dtype=torch.long)
+    ys_c_t = torch.tensor(ys_c, dtype=torch.float32)
 
     methods = [
-        ("TS",         TemperatureScaling().fit(lc, yh_c_t),             False),
-        ("LS-TS",      LabelSmoothTS().fit(lc, yh_c_t),                  False),
-        ("ATS-Hard",   AdaptiveTempScaling().fit(lc, yh_c_t),            True),
-        ("SLTS",       SoftLabelTS().fit(lc, ys_c_t),                    False),
-        ("ATS-Soft",   AdaptiveSoftLabelTS().fit(lc, ys_c_t),            True),
+        ("TS",      TemperatureScaling().fit(lc, yh_c_t),    False),
+        ("LS-TS",   LabelSmoothTS().fit(lc, yh_c_t),         False),
+        ("ATS",     AdaptiveTempScaling().fit(lc, yh_c_t),   True),
+        ("SLTS",    SoftLabelTS().fit(lc, ys_c_t),           False),
     ]
 
     print(f"\n  {label}")
-    print(f"  {'Method':<12} {'T_mean':>7}  {'ECE%':>6}  {'Brier':>7}  {'NLL':>7}")
-    print(f"  {'-'*50}")
+    print(f"  {'Method':<10} {'T':>6}  {'ECE%':>6}  {'aECE%':>6}  {'cwECE%':>7}  {'Brier':>7}  {'NLL':>7}")
+    print(f"  {'-'*62}")
 
     results = {}
     for name, model, is_adaptive in methods:
         p = apply_parametric(model, lt.numpy())
         m = compute_all_metrics(p, yh_t, ys_t, n_bins=n_bins, name=name)
-        T_str = f"{model.mean_T(lt):6.3f}" if is_adaptive else f"{model.T:6.3f}"
-        print(f"  {name:<12} {T_str}  "
+        T_val = model.mean_T(lt) if is_adaptive else model.T
+        print(f"  {name:<10} {T_val:6.3f}  "
               f"{m['ece_sampled']*100:6.2f}%  "
+              f"{m['adaptive_ece_true']*100:6.2f}%  "
+              f"{m['classwise_ece_true']*100:7.2f}%  "
               f"{m['brier_sampled']:.4f}  "
               f"{m['nll_sampled']:.4f}")
         results[name] = {
-            "T_mean": model.mean_T(lt) if is_adaptive else model.T,
-            "ece":    m["ece_sampled"],
-            "brier":  m["brier_sampled"],
-            "nll":    m["nll_sampled"],
+            "T":     T_val,
+            "ece":   m["ece_sampled"],
+            "aece":  m["adaptive_ece_true"],
+            "cwece": m["classwise_ece_true"],
+            "brier": m["brier_sampled"],
+            "nll":   m["nll_sampled"],
         }
     return results
 
@@ -177,14 +207,14 @@ def main():
     Path(args.results_dir).mkdir(parents=True, exist_ok=True)
 
     configs = [
-        ("cifar10h",  "resnet50",        "CIFAR-10H ResNet-50",       load_cifar10h),
-        ("cifar10h",  "vit_b16",         "CIFAR-10H ViT-B/16",        load_cifar10h),
-        ("chaosnli",  "roberta_large",   "ChaosNLI RoBERTa-L",        load_chaosnli),
-        ("chaosnli",  "deberta_v3",      "ChaosNLI DeBERTa-v3",       load_chaosnli),
-        ("dermamnist","resnet18",         "DermaMNIST ResNet-18",      load_dermamnist),
-        ("dermamnist","vit_s16",          "DermaMNIST ViT-S/16",       load_dermamnist),
-        ("isic2019",  "efficientnet_b4", "ISIC 2019 ENet-B4",         load_isic2019),
-        ("isic2019",  "vit_s16",         "ISIC 2019 ViT-S/16",        load_isic2019),
+        ("cifar10h",   "resnet50",        "CIFAR-10H ResNet-50",    load_cifar10h),
+        ("cifar10h",   "vit_b16",         "CIFAR-10H ViT-B/16",     load_cifar10h),
+        ("chaosnli",   "roberta_large",   "ChaosNLI RoBERTa-L",     load_chaosnli),
+        ("chaosnli",   "deberta_v3",      "ChaosNLI DeBERTa-v3",    load_chaosnli),
+        ("dermamnist", "resnet18",        "DermaMNIST ResNet-18",   load_dermamnist),
+        ("dermamnist", "vit_s16",         "DermaMNIST ViT-S/16",    load_dermamnist),
+        ("isic2019",   "efficientnet_b4", "ISIC 2019 ENet-B4",      load_isic2019),
+        ("isic2019",   "vit_s16",         "ISIC 2019 ViT-S/16",     load_isic2019),
     ]
 
     all_results = {}
@@ -193,7 +223,7 @@ def main():
         try:
             data = loader(args.cache_dir, arch, args.seed)
         except FileNotFoundError as e:
-            print(f"  SKIP (file not found): {e}")
+            print(f"  SKIP: {e}")
             continue
         key = f"{dataset}_{arch}"
         all_results[key] = run_one(*data, n_bins=args.n_bins, label=label)

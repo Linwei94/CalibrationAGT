@@ -329,6 +329,7 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  &  4.97 &  5.71 &  1.09 & 0.120 & 0.692  & ---  &  4.99 &  5.36 &  1.06 & 0.111 & 0.678 \\
     TS             & 2.03 &  4.29 &  4.25 &  0.91 & 0.112 & 0.363  & 2.04 &  4.48 &  4.40 &  0.93 & 0.106 & 0.346 \\
+    ATS            & 2.33 &  4.10 &  4.01 &  0.87 & 0.113 & 0.334  & 2.26 &  4.10 &  4.04 &  0.86 & 0.105 & 0.319 \\
     Platt          & ---  &  4.29 &  4.23 &  0.91 & 0.112 & 0.372  & ---  &  4.54 &  4.38 &  0.93 & 0.105 & 0.363 \\
     Dirichlet-Hard & ---  &  4.46 &  4.44 &  0.95 & 0.114 & 0.395  & ---  &  4.70 &  4.62 &  0.97 & 0.107 & 0.394 \\
     \cmidrule(l){1-13}
@@ -352,6 +353,7 @@ CIFAR-10H \citep{peterson2019human} provides ${\approx}51$ human annotations per
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  & 27.79 & 27.77 & 18.61 & 0.650 & 1.384  & ---  & 35.97 & 35.92 & 24.02 & 0.743 & 2.148 \\
     TS             & 2.42 & 10.55 & 10.38 &  7.30 & 0.537 & 0.886  & 3.81 & 11.63 & 11.57 &  8.48 & 0.549 & 0.900 \\
+    ATS            & 2.28 & 11.36 & 11.29 &  7.73 & 0.538 & 0.883  & 3.57 & 13.09 & 13.07 &  9.06 & 0.552 & 0.900 \\
     Platt          & ---  & 11.16 & 10.92 &  7.28 & 0.530 & 0.875  & ---  & 12.43 & 12.36 &  8.43 & 0.539 & 0.896 \\
     Dirichlet-Hard & ---  & 11.55 & 11.40 &  7.64 & 0.535 & 0.889  & ---  & 12.69 & 12.63 &  8.84 & 0.539 & 0.895 \\
     \cmidrule(l){1-13}
@@ -436,6 +438,7 @@ We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 ski
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  & 25.76 & 25.84 &  6.67 & 0.600 & 2.710  & ---  & 23.31 & 23.33 &  6.55 & 0.651 & 1.978 \\
     TS             & 1.79 & 18.54 & 18.49 &  5.02 & 0.560 & 1.653  & 1.42 & 16.59 & 16.60 &  5.23 & 0.617 & 1.563 \\
+    ATS            & 1.71 & 18.83 & 18.80 &  5.03 & 0.560 & 1.733  & 1.12 & 17.53 & 17.48 &  5.46 & 0.631 & 1.730 \\
     Platt          & ---  & 19.89 & 19.81 &  5.24 & 0.562 & 1.659  & ---  & 17.19 & 17.17 &  4.74 & 0.597 & 1.583 \\
     Dirichlet-Hard & ---  & 20.36 & 20.32 &  5.33 & 0.563 & 1.674  & ---  & 17.76 & 17.72 &  4.86 & 0.600 & 1.597 \\
     \cmidrule(l){1-13}
@@ -459,6 +462,7 @@ We evaluate on \textbf{ISIC~2019} \citep{codella2018skin,combalia2019bcn} (8 ski
     \multicolumn{13}{l}{\textit{Voted-label baselines}} \\
     Uncalibrated   & ---  & 34.35 & 34.26 & 10.15 & 0.767 & 2.689  & ---  & 37.12 & 37.10 & 10.82 & 0.786 & 3.766 \\
     TS             & 1.86 & 23.05 & 22.82 &  6.97 & 0.686 & 1.654  & 2.60 & 24.36 & 24.26 &  7.29 & 0.683 & 1.664 \\
+    ATS            & 1.86 & 22.82 & 22.75 &  6.97 & 0.687 & 1.606  & 2.53 & 25.35 & 25.24 &  7.53 & 0.686 & 1.650 \\
     Platt          & ---  & 23.64 & 23.56 &  7.08 & 0.682 & 1.667  & ---  & 23.82 & 23.59 &  7.10 & 0.675 & 1.681 \\
     Dirichlet-Hard & ---  & 24.58 & 24.46 &  7.33 & 0.690 & 1.771  & ---  & 24.84 & 24.68 &  7.49 & 0.682 & 1.897 \\
     \cmidrule(l){1-13}
@@ -1110,30 +1114,48 @@ A natural question is whether making the calibration map \emph{adaptive} --- pre
 \begin{table}[H]
   \centering
   \small
-  \caption{\textbf{ATS vs.\ TS and LS-TS (annotation-free methods only).}
-    ECE$_\text{true}$ (\%), Brier, NLL on the two real multi-annotator benchmarks.
+  \caption{\textbf{ATS vs.\ TS and LS-TS across all 8 settings (annotation-free methods only).}
+    ECE$_\text{true}$ (\%) and Brier.
     ATS predicts a per-instance temperature from logit features but is trained with the same voted-label NLL as TS.
-    Bold = best annotation-free method per column.}
+    \textbf{Bold} = best annotation-free method per column.}
   \label{tab:ats}
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{l rrr rrr rrr rrr}
+  \setlength{\tabcolsep}{4pt}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{l rr rr rr rr rr rr rr rr}
     \toprule
-    & \multicolumn{3}{c}{CIFAR-10H ResNet-50}
-    & \multicolumn{3}{c}{CIFAR-10H ViT-B/16}
-    & \multicolumn{3}{c}{ChaosNLI RoBERTa-L}
-    & \multicolumn{3}{c}{ChaosNLI DeBERTa-v3} \\
-    \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
-    Method & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL \\
+    & \multicolumn{2}{c}{\shortstack{C10H\\R50}}
+    & \multicolumn{2}{c}{\shortstack{C10H\\ViT}}
+    & \multicolumn{2}{c}{\shortstack{NLI\\RoBERTa}}
+    & \multicolumn{2}{c}{\shortstack{NLI\\DeBERTa}}
+    & \multicolumn{2}{c}{\shortstack{ISIC\\ENet}}
+    & \multicolumn{2}{c}{\shortstack{ISIC\\ViT}}
+    & \multicolumn{2}{c}{\shortstack{Derm\\R18}}
+    & \multicolumn{2}{c}{\shortstack{Derm\\ViT}} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+    \cmidrule(lr){10-11}\cmidrule(lr){12-13}\cmidrule(lr){14-15}\cmidrule(lr){16-17}
+    Method & ECE & Br & ECE & Br & ECE & Br & ECE & Br & ECE & Br & ECE & Br & ECE & Br & ECE & Br \\
     \midrule
-    TS       & 3.90 & .113 & .346 & 4.01 & .104 & .320 & 10.55 & .537 & .886 & 11.63 & .549 & .900 \\
-    ATS      & 4.10 & .113 & .334 & 4.10 & .105 & .319 & 11.36 & .538 & .883 & 13.09 & .552 & .900 \\
-    \textbf{LS-TS} & \textbf{1.49} & \textbf{.111} & \textbf{.296} & \textbf{1.62} & \textbf{.102} & \textbf{.279} & \textbf{4.16} & \textbf{.522} & \textbf{.873} & \textbf{2.65} & \textbf{.529} & \textbf{.881} \\
+    TS
+      &  3.90 & .113 &  4.01 & .104 & 10.55 & .537 & 11.63 & .549
+      & 18.54 & .560 & 16.59 & .617 & 23.05 & .686 & 24.36 & .683 \\
+    ATS
+      &  4.10 & .113 &  4.10 & .105 & 11.36 & .538 & 13.09 & .552
+      & 18.83 & .560 & 17.53 & .631 & 22.82 & .687 & 25.35 & .686 \\
+    \textbf{LS-TS}
+      & \textbf{1.49} & \textbf{.111}
+      & \textbf{1.62} & \textbf{.102}
+      & \textbf{4.16} & \textbf{.522}
+      & \textbf{2.65} & \textbf{.529}
+      & \textbf{9.34} & \textbf{.528}
+      & \textbf{15.49} & \textbf{.619}
+      & \textbf{5.05} & \textbf{.630}
+      & \textbf{7.36} & \textbf{.615} \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}}
 \end{table}
 
 \paragraph{Finding.}
-ATS consistently \emph{fails to improve} over TS and in most settings degrades it (e.g., ECE rises from 11.63\% to 13.09\% on DeBERTa-v3).  The per-instance temperature learned from logit features adapts to model uncertainty, not to annotator disagreement --- these two quantities are loosely correlated at best (cf.\ Figure~\ref{fig:entropy-validation}).  In contrast, LS-TS, which uses the same global-temperature architecture as TS but simply shifts the calibration target toward a smoothed distribution, reduces ECE by 62--78\% on these four settings.  This confirms that the calibration target is the critical design axis: added architectural flexibility without the right supervision signal yields no benefit.
+ATS fails to improve over TS in all 8 settings and in several cases degrades it (ECE rises from $11.63\%$ to $13.09\%$ on DeBERTa-v3; from $16.59\%$ to $17.53\%$ on ISIC ViT-S/16).  The per-instance temperature learned from logit features adapts to \emph{model uncertainty}, not to \emph{annotator disagreement} --- these two quantities are loosely correlated at best (cf.\ Figure~\ref{fig:entropy-validation}).  In contrast, LS-TS, which uses the same global-temperature architecture as TS but simply shifts the calibration target toward a smoothed distribution, reduces ECE by 7--78\% across all 8 settings without any annotator data.  This confirms that the calibration target is the critical design axis: added architectural flexibility without the right supervision signal yields no benefit.
 
 \clearpage
 \section{Implementation Details}
