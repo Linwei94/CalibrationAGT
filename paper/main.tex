@@ -67,13 +67,13 @@
 \begin{abstract}
 % ─────────────────────────────────────────────────────────────────────────────
 Confidence calibration implicitly assumes a unique ground-truth label per input.
-This assumption breaks down in settings such as medical diagnosis, natural language inference, and perceptual tasks, where multiple annotators may genuinely disagree.
-We show that post-hoc calibrators fitted on majority-voted labels can appear well-calibrated against voted labels yet remain substantially miscalibrated against labels drawn from the underlying ambiguous label distribution reflected by human disagreement.
-This failure is structural, affecting classic calibration methods such as Temperature Scaling, Platt scaling, and Histogram Binning.
-We prove that Temperature Scaling is biased toward lower temperatures than this ambiguity-aware target distribution requires, and that the resulting true-label error increases with annotation entropy.
-To address this failure, we propose a family of ambiguity-aware post-hoc calibrators that optimize proper scoring rules against the full label distribution, among which \textbf{Dirichlet-Soft} --- a full $K\!\times\!K$ affine calibrator fitted against the annotator distribution --- achieves the best or near-best distributional fit across most benchmarks.
-For the more common case where the calibration set contains only one-hot voted labels, we propose \textbf{Label-Smooth Temperature Scaling (LS-TS)}, which constructs pseudo-soft targets from the model's own confidence without any additional annotations.
-Experiments on CIFAR-10H, ChaosNLI, ISIC~2019, and DermaMNIST, spanning eight architectures across vision and language, show that Dirichlet-Soft reduces true-label ECE by 59--86\% relative to standard Temperature Scaling and achieves the best or tied-best Brier score and NLL in 7 of 8 settings, while LS-TS reduces true-label ECE by 7--78\% without requiring annotator distributions.
+This assumption breaks down wherever multiple annotators genuinely disagree --- in perceptual tasks, natural language inference, and medical diagnosis.
+We show that post-hoc calibrators fitted on majority-voted labels can appear well-calibrated against voted labels yet remain substantially miscalibrated against the underlying annotator distribution.
+This failure is structural: under simplifying assumptions we show that Temperature Scaling is biased toward lower temperatures than the ambiguity-aware target requires, and that the resulting true-label error grows with annotation entropy --- a relationship we validate empirically by binning test examples by annotation entropy.
+We propose a family of ambiguity-aware post-hoc calibrators that optimize proper scoring rules against the full label distribution, among which \textbf{Dirichlet-Soft} achieves the best or near-best Brier score and NLL on most benchmarks.
+For the common case where only one-hot voted labels are available, \textbf{Label-Smooth Temperature Scaling (LS-TS)} constructs pseudo-soft targets from the model's own confidence without any annotations.
+On CIFAR-10H and ChaosNLI --- benchmarks with real multi-annotator distributions --- Dirichlet-Soft reduces true-label ECE by 59--86\% relative to Temperature Scaling and achieves the best or tied-best Brier/NLL in 7 of 8 settings; LS-TS reduces ECE by 7--78\% annotation-free.
+Results on ISIC~2019 and DermaMNIST with clinically-informed synthetic annotators provide supportive evidence across medical imaging tasks.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ Equation~\eqref{eq:hard-cal} implicitly assumes a unique ground-truth label $Y$ 
 \end{figure}
 
 \paragraph{The standard practice and its failure.}
-Figure~\ref{fig:intro-ambiguity} illustrates the core issue: a single input can support multiple plausible labels, and the full label distribution is the object that should be calibrated.  Standard practice nevertheless aggregates annotations by majority vote to obtain a \emph{voted label} $y^*$ and calibrates against it, and in many applications this one-hot voted label is all that is available in the calibration set.  We show that this can yield low ECE against voted labels ($\ECEvoted$) while leaving substantial miscalibration against true labels drawn from the ambiguity-aware label distribution $\pi(\cdot\mid x)$ ($\ECEtrue$, following \citet{stutz2023conformal}).  The mechanism is straightforward: ambiguous examples appear underconfident relative to the one-hot voted target, so Temperature Scaling selects a lower $T$ than the ambiguity-aware label distribution requires, amplifying overconfidence.  In a controlled experiment (Section~\ref{sec:toy}), Temperature Scaling, Platt scaling, and Histogram Binning all fail to correct this mismatch, because the root cause is the voted-label target, not method capacity.
+Figure~\ref{fig:intro-ambiguity} illustrates the core issue: a single input can support multiple plausible labels, and the full label distribution is the object that should be calibrated.  Standard practice nevertheless aggregates annotations by majority vote to obtain a \emph{voted label} $y^*$ and calibrates against it, and in many applications this one-hot voted label is all that is available in the calibration set.  We show that this can yield low ECE against voted labels ($\ECEvoted$) while leaving substantial miscalibration against true labels drawn from the ambiguity-aware label distribution $\pi(\cdot\mid x)$ ($\ECEtrue$, following \citet{stutz2023conformal}).  The mechanism is straightforward: ambiguous examples appear underconfident relative to the one-hot voted target, so Temperature Scaling selects a lower $T$ than the ambiguity-aware label distribution requires, amplifying overconfidence.  In a controlled experiment (Section~\ref{sec:toy}), all voted-label calibrators fail to correct this mismatch, because the root cause is the voted-label target, not method capacity.
 
 \paragraph{Contributions.}
 \begin{enumerate}[leftmargin=*]
@@ -186,7 +186,7 @@ Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the
 \label{sec:theory}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We now formalize two complementary aspects of the failure of voted-label calibration under ambiguity: the \emph{direction} of the TS bias (Proposition~\ref{prop:ts-bias}) and its \emph{scaling} with label ambiguity (Proposition~\ref{prop:entropy-gap}).
+We now formalize, under simplifying assumptions, two complementary aspects of the failure of voted-label calibration under ambiguity: the \emph{direction} of the TS bias (Proposition~\ref{prop:ts-bias}) and its \emph{scaling} with label ambiguity (Proposition~\ref{prop:entropy-gap}).  Both propositions characterize \emph{pointwise} miscalibration on individual examples; they describe when and why a voted-label calibrator misfits individual ambiguous inputs, rather than providing a theorem about population-level ECE.  Empirical validation of Proposition~\ref{prop:entropy-gap} is provided in Appendix~\ref{app:entropy-validation}.
 
 \begin{proposition}[Direction of TS Bias]
 \label{prop:ts-bias}
@@ -530,14 +530,14 @@ Figure~\ref{fig:calsize-main} shows that ambiguity-aware methods converge with a
 \end{figure}
 
 \paragraph{Limitations.}
-Full ambiguity-aware calibration (including Dirichlet-Soft) requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS remains useful but does not fully match Dirichlet-Soft, particularly on datasets where model confidence diverges from annotation ambiguity (e.g., ISIC~2019 ViT-S/16).  ISIC~2019 and DermaMNIST rely on synthetic annotators derived from clinician-reported agreement.  Crucially, this is a \emph{class-conditional} model: annotation confusion depends only on the consensus class label, not on instance-level visual difficulty.  Real multi-reader medical datasets with per-image reader distributions would provide stronger validation and would capture the instance-level variation our synthetic model does not.  Conclusions about absolute ECE magnitudes on these two datasets should be interpreted with this in mind; the relative ranking of methods is expected to be robust to the specific confusion matrix used, as confirmed by the multi-seed annotation-generation ablation (Appendix~\ref{app:multiseed}).
+Full ambiguity-aware calibration (including Dirichlet-Soft) requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS remains useful but does not fully match Dirichlet-Soft, particularly on datasets where model confidence diverges from annotation ambiguity (e.g., ISIC~2019 ViT-S/16).  ISIC~2019 and DermaMNIST rely on synthetic annotators derived from clinician-reported agreement.  Crucially, this is a \emph{class-conditional} model: annotation confusion depends only on the consensus class label, not on instance-level visual difficulty.  Real multi-reader medical datasets with per-image reader distributions would provide stronger validation and would capture the instance-level variation our synthetic model does not --- concrete candidates include LIDC-IDRI \citep{armato2011lidc} (4 radiologists per CT scan) and VinDr-CXR \citep{nguyen2022vindr} (3 radiologists per chest X-ray).  Conclusions about absolute ECE magnitudes on these two datasets should be interpreted with this in mind; the relative ranking of methods is expected to be robust to the specific confusion matrix used, as confirmed by the multi-seed annotation-generation ablation (Appendix~\ref{app:multiseed}).
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the underlying ambiguous label distribution.  Our flagship ambiguity-aware method, \textbf{Dirichlet-Soft}, requires no retraining and achieves the best or near-best Brier score and NLL across most benchmarks and architectures (best NLL in 7 of 8 settings; best or tied Brier in 7 of 8 settings), reducing true-label ECE by 59--86\% relative to Temperature Scaling.  The key insight is that the calibration target --- not method capacity --- is the limiting factor: Dirichlet calibration with voted-label targets (Dirichlet-Hard) consistently \emph{underperforms} simple TS, while the same architecture with soft-label targets (Dirichlet-Soft) achieves the best overall results.  Crucially, when the calibration set contains only one-hot voted labels, our annotation-free method \textbf{LS-TS} still improves true-label calibration, reducing ECE by 7--78\% using only the model's own confidence as a proxy for annotator disagreement.  We recommend Dirichlet-Soft as the default wherever multi-annotator data is available, and LS-TS as a practical post-hoc alternative when only voted labels are available.
+We formalized the problem of confidence calibration under ambiguous ground truth and showed that standard post-hoc calibrators fitted on voted labels are systematically miscalibrated against the underlying ambiguous label distribution.  Our flagship ambiguity-aware method, \textbf{Dirichlet-Soft}, requires no retraining and achieves the best or near-best Brier score and NLL across most benchmarks and architectures (best NLL in 7 of 8 settings; best or tied Brier in 7 of 8 settings).  On CIFAR-10H and ChaosNLI --- benchmarks with real per-instance multi-annotator distributions --- it reduces true-label ECE by 59--86\% relative to Temperature Scaling; ISIC~2019 and DermaMNIST results (with synthetic annotators) provide supportive evidence across medical imaging tasks.  The key insight is that the calibration target --- not method capacity --- is the limiting factor: Dirichlet calibration with voted-label targets (Dirichlet-Hard) consistently \emph{underperforms} simple TS, while the same architecture with soft-label targets (Dirichlet-Soft) achieves the best overall results.  Crucially, when the calibration set contains only one-hot voted labels, our annotation-free method \textbf{LS-TS} still improves true-label calibration, reducing ECE by 7--78\% using only the model's own confidence as a proxy for annotator disagreement.  We recommend Dirichlet-Soft as the default wherever multi-annotator data is available, and LS-TS as a practical post-hoc alternative when only voted labels are available.
 
 \clearpage
 \bibliographystyle{abbrvnat}
@@ -1038,6 +1038,21 @@ Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusio
     \bottomrule
   \end{tabular}
 \end{table}
+
+\clearpage
+\section{Empirical Validation of Proposition~\ref{prop:entropy-gap}}
+\label{app:entropy-validation}
+
+Proposition~\ref{prop:entropy-gap} states that, under simplifying assumptions, the pointwise true-label calibration error of a voted-label-calibrated model is non-decreasing in the annotation entropy $H(x)$.  Figure~\ref{fig:entropy-validation} provides empirical support: we bin test examples by their normalized annotation entropy $H(x)/\log K$ and plot the mean absolute error $|\hat{p}_{\hat{c}}(x) - \pi_{\hat{c}}(x)|$ for TS and SLTS.
+
+For CIFAR-10H (both architectures), TS error rises from $\approx\!2\%$ in the near-unambiguous bin ($H/\log K \approx 0.02$) to $\approx\!18\%$ in the high-ambiguity bin ($H/\log K \approx 0.48$), a clear monotone increase consistent with the proposition.  SLTS also increases (the soft target itself becomes harder to match at high entropy) but does so more moderately.  For ChaosNLI (DeBERTa-v3), which operates in a higher-entropy regime ($H/\log K \in [0.2, 0.9]$), TS again rises at the extremes while SLTS attenuates the error at moderate entropy levels.  The crossover in the low-entropy bins reflects that SLTS over-smooths near-unambiguous examples (where voted-label and soft-label targets nearly coincide), consistent with the slight performance difference between TS and SLTS on unambiguous subsets.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figs/fig_entropy_validation.pdf}
+  \caption{\textbf{Empirical validation of Proposition~\ref{prop:entropy-gap}.}  Test examples are grouped into equal-frequency bins by normalized annotation entropy $H(x)/\log K$.  Each point shows the mean pointwise true-label calibration error $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$ (error bars: $\pm 1$ s.e.).  TS error consistently increases with annotation entropy on CIFAR-10H, confirming Proposition~\ref{prop:entropy-gap}.  SLTS moderates but does not eliminate this trend.}
+  \label{fig:entropy-validation}
+\end{figure}
 
 \clearpage
 \section{LS-TS Ablation: Smoothing Strategy Comparison}
