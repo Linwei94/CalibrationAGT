@@ -404,6 +404,102 @@ class LabelSmoothTS(nn.Module):
         return self.temperature.item()
 
 
+class FixedLabelSmoothTS(nn.Module):
+    """
+    Fixed Label-Smooth TS (Fixed-LS-TS): ablation baseline for LS-TS.
+
+    Uses a fixed, data-independent smoothing weight ε (default 0.1) identical
+    for all examples, without any adaptation from the model or calibration data.
+    This tests whether LS-TS's improvement is due to soft targets in general
+    (any ε > 0) versus the data-driven estimate of ε.
+    """
+
+    def __init__(self, eps: float = 0.1, init_T: float = 1.5):
+        super().__init__()
+        self.eps = eps
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    def fit(self, logits: torch.Tensor,
+            labels_hard: torch.Tensor) -> "FixedLabelSmoothTS":
+        with torch.no_grad():
+            K  = logits.shape[1]
+            yh = torch.zeros(len(labels_hard), K)
+            yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)
+            pi_hat = (1 - self.eps) * yh + (self.eps / K)
+
+        opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                  tolerance_grad=1e-9, tolerance_change=1e-11)
+
+        def closure():
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss  = -(pi_hat * log_p).sum(1).mean()
+            loss.backward()
+            return loss
+
+        opt.step(closure)
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
+class EntropyLabelSmoothTS(nn.Module):
+    """
+    Entropy-based Label-Smooth TS (Ent-LS-TS): ablation baseline for LS-TS.
+
+    Uses per-instance smoothing weight ε_i = H(f(x_i)) / log(K), where H is
+    the Shannon entropy of the model's softmax output.  This tests whether
+    per-instance entropy from the model's own predictions is a better proxy
+    for annotation ambiguity than the global mean-confidence estimate in LS-TS.
+    """
+
+    def __init__(self, init_T: float = 1.5):
+        super().__init__()
+        self.temperature = nn.Parameter(torch.ones(1) * init_T)
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits / self.temperature.clamp(min=1e-3)
+
+    @staticmethod
+    def make_pseudo_labels(logits: torch.Tensor,
+                           labels_hard: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            K  = logits.shape[1]
+            f  = torch.softmax(logits, dim=1)
+            H  = -(f * f.clamp(min=1e-12).log()).sum(1)  # Shannon entropy (N,)
+            eps_i = (H / np.log(K)).clamp(0, 1)           # normalised to [0,1]
+            yh = torch.zeros_like(f)
+            yh.scatter_(1, labels_hard.unsqueeze(1), 1.0)
+            pi_hat = (1 - eps_i).unsqueeze(1) * yh + (eps_i / K).unsqueeze(1)
+        return pi_hat
+
+    def fit(self, logits: torch.Tensor,
+            labels_hard: torch.Tensor) -> "EntropyLabelSmoothTS":
+        pi_hat = self.make_pseudo_labels(logits, labels_hard)
+
+        opt = torch.optim.LBFGS([self.temperature], lr=0.1, max_iter=500,
+                                  tolerance_grad=1e-9, tolerance_change=1e-11)
+
+        def closure():
+            opt.zero_grad()
+            log_p = torch.log_softmax(self(logits), dim=1)
+            loss  = -(pi_hat * log_p).sum(1).mean()
+            loss.backward()
+            return loss
+
+        opt.step(closure)
+        return self
+
+    @property
+    def T(self) -> float:
+        return self.temperature.item()
+
+
 class EMSmoothTS(nn.Module):
     """
     EM Label-Smooth Temperature Scaling (EM-LS-TS).

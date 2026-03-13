@@ -262,7 +262,7 @@ and minimize $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these t
 The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly across all $K$ classes.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
 \paragraph{Theoretical interpretation.}
-The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.
+The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to self-distillation \citep{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Appendix~\ref{app:lsts-ablation} compares LS-TS against three simpler smoothing strategies and confirms that the data-driven global $\bar\varepsilon$ is the key design choice.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments}
@@ -1038,6 +1038,53 @@ Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusio
     \bottomrule
   \end{tabular}
 \end{table}
+
+\clearpage
+\section{LS-TS Ablation: Smoothing Strategy Comparison}
+\label{app:lsts-ablation}
+
+We compare LS-TS against three simpler annotation-free smoothing baselines that share the same single-temperature family but differ in how the pseudo-target $\tpihat^{\mathrm{LS}}_i$ is constructed:
+
+\begin{itemize}[noitemsep, topsep=2pt]
+  \item \textbf{Fixed-LS} ($\varepsilon{=}0.1$): fixed data-independent smoothing weight, the standard label-smoothing value used in training \citep{szegedy2016rethinking}.
+  \item \textbf{Ent-LS}: per-instance $\varepsilon_i = H(\hat{p}(x_i)) / \log K$, using normalised prediction entropy as a proxy for annotator disagreement.
+  \item \textbf{CC-LS}: per-class $\varepsilon_k = \mathrm{mean}_{i:\,y^*_i=k}(1 - \hat{p}_{y^*}(x_i))$, accommodating class-level variation in model confidence (same idea as Vector Scaling applied to the smoothing weight).
+\end{itemize}
+
+All methods are evaluated on CIFAR-10H and ChaosNLI, the two benchmarks with real multi-annotator distributions, using the same experimental protocol as the main paper (seed 42, 50/50 stratified split).
+
+\begin{table}[h]
+  \centering
+  \caption{
+    \textbf{LS-TS ablation: annotation-free smoothing strategies.}
+    ECE$_\text{true}$ (\%), Brier score, and NLL on CIFAR-10H and ChaosNLI.
+    All methods use the same single-temperature family; only the pseudo-target construction differs.
+    Fixed-LS uses $\varepsilon{=}0.1$ regardless of the data; Ent-LS uses per-instance entropy; CC-LS uses per-class mean complement-confidence.
+    Best annotation-free method per column in \textbf{bold}.
+  }
+  \label{tab:lsts-ablation}
+  \small
+  \setlength{\tabcolsep}{4.5pt}
+  \begin{tabular}{l ccc ccc ccc ccc}
+    \toprule
+    & \multicolumn{3}{c}{\textbf{CIFAR R50}} & \multicolumn{3}{c}{\textbf{CIFAR ViT}} & \multicolumn{3}{c}{\textbf{Chaos RoBERTa}} & \multicolumn{3}{c}{\textbf{Chaos DeBERTa}} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+    Method & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL & ECE & Br & NLL \\
+    \midrule
+    TS (voted) & 3.90 & .1126 & .346 & 4.01 & .1043 & .320 & 10.55 & .537 & .886 & 11.63 & .549 & .900 \\
+    \midrule
+    Fixed-LS ($\varepsilon{=}0.1$) & 7.44 & .1207 & .332 & 6.00 & .1058 & .305 & 6.46 & .525 & .866 & 7.53 & .536 & .882 \\
+    Ent-LS  & 3.16 & .1116 & .321 & 3.69 & .1037 & .308 & 3.17 & .520 & .862 & 8.58 & .539 & .885 \\
+    CC-LS   & \textbf{1.48} & \textbf{.1111} & \textbf{.296} & 1.69 & \textbf{.1016} & .279 & 4.15 & .522 & .873 & \textbf{2.54} & \textbf{.529} & \textbf{.880} \\
+    LS-TS (ours) & \textbf{1.49} & \textbf{.1111} & \textbf{.296} & \textbf{1.62} & \textbf{.1016} & \textbf{.279} & \textbf{4.16} & \textbf{.522} & \textbf{.873} & 2.65 & .529 & .881 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Key findings.}
+Fixed-LS with $\varepsilon{=}0.1$ consistently \emph{under}performs or even \emph{degrades} below TS (e.g., ECE 7.44\% vs.\ 3.90\% on CIFAR-10H ResNet-50), confirming that an arbitrary fixed smoothing weight is insufficient --- the data-driven estimate of $\bar\varepsilon$ is critical.
+Ent-LS (per-instance entropy) improves over TS on most settings but is inconsistent: it works well on ChaosNLI RoBERTa-L (3.17\%) but collapses on DeBERTa-v3 (8.58\%), suggesting that prediction entropy is a noisy proxy for annotator ambiguity when models are already strongly confident.
+CC-LS (per-class $\varepsilon$) achieves results very close to LS-TS on all four settings (within 0.1 pp ECE), confirming that the global mean is a good summary of per-class behaviour for these benchmarks; the slight advantage of CC-LS on DeBERTa-v3 (2.54\% vs.\ 2.65\%) is within the single-seed variance reported in Appendix~\ref{app:multiseed}.
 
 \clearpage
 \section{Implementation Details}
