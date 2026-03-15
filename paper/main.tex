@@ -171,7 +171,7 @@ A 2-layer MLP (64 hidden units per layer) is trained on voted labels, and all ca
     \textbf{Motivating example: all standard calibration methods fail.}
     \textbf{(a)} Toy dataset generation: only the middle Gaussian cluster is ambiguous, with $\pi=[0,0.70,0.30]$; orange points are drawn as label~1 (70\%) and red points as label~2 (30\%), while all receive the same voted label~1.
     \textbf{(e)} Summary of the toy results: all three voted-label calibrators (TS, Platt, Histogram Binning) lower $\ECEvoted$ but \emph{increase} $\ECEtrue$, so voted-label evaluation masks the failure.
-    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt, and Histogram Binning: the residual error is concentrated in ambiguous examples for all three methods.
+    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt, and Histogram Binning: ambiguous examples are those from the middle Gaussian cluster (where annotators disagree); clear examples are those from the two unambiguous clusters (where $\pi$ is one-hot).  The residual error is concentrated in ambiguous examples for all three methods, confirming that the failure is tied to annotation uncertainty rather than overall model confidence.
   }
   \label{fig:toy}
 \end{figure}
