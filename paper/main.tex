@@ -84,7 +84,7 @@ A well-calibrated classifier $f:\X\to\Delta^{K}$ produces probability vectors $\
   \bP\!\bigl(\hat{Y}=Y \mid \phat_{\hat{Y}}(X)=p\bigr) = p, \quad \forall\, p\in[0,1],
   \label{eq:hard-cal}
 \end{equation}
-where $\Delta^K$ denotes the $K$-dimensional probability simplex.  Calibration is critical for safe deployment in medicine \citep{kompa2021second}, autonomous driving, and other high-stakes settings.
+where $\Delta^K$ denotes the $K$-dimensional probability simplex.  Calibration is critical for safe deployment in medicine \citep{kompa2021second}, autonomous driving \citep{feng2022review}, and other high-stakes settings \citep{ovadia2019trust,abdar2021review}.
 
 \paragraph{The hidden assumption.}
 Equation~\eqref{eq:hard-cal} implicitly assumes a unique ground-truth label $Y$ for every input $x$.  In practice this assumption frequently fails: a skin lesion may be legitimately classified as malignant or benign by different dermatologists; a natural-language premise may or may not entail a hypothesis depending on pragmatic context; low-resolution objects can be categorically ambiguous.  In such settings the correct target is not a single label but a \emph{distribution over labels}, $\pi(\cdot\mid x)\in\Delta^K$, representing the underlying ambiguous label distribution induced by genuine annotator disagreement.
