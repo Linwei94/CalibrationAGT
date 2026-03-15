@@ -171,7 +171,7 @@ A 2-layer MLP (64 hidden units per layer) is trained on voted labels, and all ca
     \textbf{Motivating example: all standard calibration methods fail.}
     \textbf{(a)} Toy dataset generation: only the middle Gaussian cluster is ambiguous, with $\pi=[0,0.70,0.30]$; orange points are drawn as label~1 (70\%) and red points as label~2 (30\%), while all receive the same voted label~1.
     \textbf{(e)} Summary of the toy results: all three voted-label calibrators (TS, Platt, Histogram Binning) lower $\ECEvoted$ but \emph{increase} $\ECEtrue$, so voted-label evaluation masks the failure.
-    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt, and Histogram Binning: ambiguous examples are those from the middle Gaussian cluster (where annotators disagree); clear examples are those from the two unambiguous clusters (where $\pi$ is one-hot).  The residual error is concentrated in ambiguous examples for all three methods, confirming that the failure is tied to annotation uncertainty rather than overall model confidence.
+    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt, and Histogram Binning: ambiguous examples are those from the middle Gaussian cluster (where annotators disagree); clear examples are those from the two unambiguous clusters (class 0 and class 2).  The residual error is concentrated in ambiguous examples for all three methods.
   }
   \label{fig:toy}
 \end{figure}
@@ -192,7 +192,7 @@ Consider a calibration set containing an ambiguous cluster in which the voted la
 \end{proposition}
 
 \begin{proof}[Proof sketch]
-On the ambiguous cluster, all voted labels are $y^*$, so the voted-label loss~\eqref{eq:ts-loss} is minimized by pushing $\operatorname{softmax}(z_i/T)_{y^*}\to 1$, i.e.\ $T\to 0$.  Hence $\partial\mathcal{L}_{\text{TS}}/\partial T>0$ and the optimal $T^*<1$.  Ambiguity-aware calibration instead minimizes $\mathcal{L}_{\text{SLTS}}$ with target $q<1$; the minimum requires $\operatorname{softmax}(z_i/T^*)_{y^*}\approx q$, necessitating $T^*>1$ whenever $\operatorname{softmax}(z_i)_{y^*}>q$.  Full proof in Appendix~\ref{app:proof-ts}.
+On the ambiguous cluster, all voted labels are $y^*$, so the voted-label loss~\eqref{eq:ts-loss} is minimized by pushing $\operatorname{softmax}(z_i/T)_{y^*}\to 1$, i.e.\ $T\to 0$.  Hence $\partial\mathcal{L}_{\text{TS}}/\partial T>0$ and the optimal $T^*<1$.  Ambiguity-aware calibration instead minimizes a soft-label loss with target $q<1$; the minimum requires $\operatorname{softmax}(z_i/T^*)_{y^*}\approx q$, necessitating $T^*>1$ whenever $\operatorname{softmax}(z_i)_{y^*}>q$.  Full proof in Appendix~\ref{app:proof-ts}.
 \end{proof}
 
 \begin{proposition}[True-Label Miscalibration and Annotation Entropy]
