@@ -107,7 +107,7 @@ Figure~\ref{fig:intro-ambiguity} illustrates the core issue: a single input can 
 \paragraph{Contributions.}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Problem and theory} (Sections~\ref{sec:problem}--\ref{sec:theory}): we formalize true-label calibration under ambiguous labels and show that TS is biased toward overly low temperatures, with true-label miscalibration becoming more severe as annotation entropy increases.
-  \item \textbf{Methods} (Section~\ref{sec:methods}): we propose ambiguity-aware post-hoc calibrators (notably \textbf{Dirichlet-Soft}, which achieves the best or near-best distributional fit on most benchmarks) for settings with annotator distributions, and \textbf{LS-TS} for the more realistic setting where the calibration set contains only one-hot voted labels.
+  \item \textbf{Methods} (Section~\ref{sec:methods}): we propose ambiguity-aware post-hoc calibrators (notably \textbf{Dirichlet-Soft}, which achieves the best or near-best calibration performance on most benchmarks) for settings with annotator distributions, and \textbf{LS-TS} for the more realistic setting where the calibration set contains only one-hot voted labels.
   \item \textbf{Evidence} (Sections~\ref{sec:toy} and~\ref{sec:experiments}): a controlled toy example and four real benchmarks show that standard calibrators can worsen true-label calibration, while Dirichlet-Soft reduces $\ECEtrue$ by 59--86\% and LS-TS by 7--78\% consistently across vision and language.
 \end{enumerate}
 
