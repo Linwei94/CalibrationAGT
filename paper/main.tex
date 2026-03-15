@@ -201,7 +201,7 @@ Let $H(x) = -\sum_k \pi_k(x)\log\pi_k(x)$ denote the annotation entropy of $x$. 
 \end{proposition}
 
 \begin{proof}[Proof sketch]
-For unambiguous examples ($H(x)=0$), $\pi(\cdot\mid x)$ is one-hot, so true-label and voted-label evaluation coincide.  As $H(x)$ increases, $\pi_{y^*}(x)$ decreases below 1.  The true-label calibration error for the predicted class is $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$; since the model is trained against the voted label (targeting $\approx 1$), $\hat{p}_{\hat{c}}(x)>\pi_{y^*}(x)$, and this mismatch grows as $\pi_{y^*}(x)$ falls.  Hence the true-label calibration error increases with $H(x)$.
+For unambiguous examples ($H(x)=0$), $\pi(\cdot\mid x)$ is one-hot, so true-label and voted-label evaluation coincide and the per-example error is $|{\hat{p}_{\hat{c}}(x) - 1}|$.  As $H(x)$ increases, assumption~(ii) gives $\pi_{y^*}(x) < 1$, introducing a gap between the voted-label target and the true annotator probability.  Because TS is optimised against one-hot voted labels, it targets $\hat{p}_{y^*}(x)\approx 1$ for all examples regardless of their annotation entropy; hence $\hat{p}_{\hat{c}}(x) > \pi_{y^*}(x)$ for ambiguous examples.  The true-label calibration error is then $\hat{p}_{\hat{c}}(x) - \pi_{y^*}(x)$, which by assumption~(i) (fixed $\hat{p}_{\hat{c}}$) increases as $\pi_{y^*}(x)$ falls with $H(x)$.
 \end{proof}
 
 % ─────────────────────────────────────────────────────────────────────────────
