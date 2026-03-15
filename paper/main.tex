@@ -170,14 +170,14 @@ A 2-layer MLP (64 hidden units per layer) is trained on voted labels, and all ca
   \caption{
     \textbf{Motivating example: all standard calibration methods fail.}
     \textbf{(a)} Toy dataset generation: only the middle Gaussian cluster is ambiguous, with $\pi=[0,0.70,0.30]$; orange points are drawn as label~1 (70\%) and red points as label~2 (30\%), while all receive the same voted label~1.
-    \textbf{(e)} Summary of the toy results: every traditional calibrator lowers $\ECEvoted$ but \emph{increases} $\ECEtrue$, so voted-label evaluation masks the failure.
-    \textbf{(f)} Stratified $\ECEtrue$ for TS and Platt scaling: the residual error is concentrated in ambiguous examples for both traditional methods.
+    \textbf{(e)} Summary of the toy results: all three voted-label calibrators (TS, Platt, Histogram Binning) lower $\ECEvoted$ but \emph{increase} $\ECEtrue$, so voted-label evaluation masks the failure.
+    \textbf{(f)} Stratified $\ECEtrue$ for TS, Platt, and Histogram Binning: the residual error is concentrated in ambiguous examples for all three methods.
   }
   \label{fig:toy}
 \end{figure}
 
 \paragraph{Results.}
-Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the voted-label target.  TS reduces $\ECEvoted$ from $3.25\%$ to $1.11\%$, but \emph{increases} $\ECEtrue$ from $6.26\%$ to $9.64\%$.  Platt scaling behaves similarly ($\ECEvoted=0.68\%$, $\ECEtrue=9.70\%$).  Figure~\ref{fig:toy}\textbf{(f)} further shows that this residual error is concentrated in the ambiguous cluster for both traditional methods.  TS sets $T=0.62<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true ambiguous label distribution.  The failure is therefore not specific to TS: standard post-hoc methods are useful for $\ECEvoted$, but the voted-label target makes them ineffective for $\ECEtrue$.
+Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the voted-label target.  TS reduces $\ECEvoted$ from $3.25\%$ to $1.11\%$, but \emph{increases} $\ECEtrue$ from $6.26\%$ to $9.64\%$.  Platt scaling behaves similarly ($\ECEvoted=0.68\%$, $\ECEtrue=9.70\%$), and Histogram Binning likewise ($\ECEvoted=1.32\%$, $\ECEtrue=9.65\%$).  Figure~\ref{fig:toy}\textbf{(f)} further shows that this residual error is concentrated in the ambiguous cluster for all three methods.  TS sets $T=0.62<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true ambiguous label distribution.  The failure is therefore not specific to TS: standard post-hoc methods are useful for $\ECEvoted$, but the voted-label target makes them ineffective for $\ECEtrue$.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Theory: Why Standard Calibration Fails}
