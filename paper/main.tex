@@ -71,8 +71,7 @@ Post-hoc calibrators fitted on majority-voted labels can appear well-calibrated 
 This failure is structural: under simplifying assumptions, Temperature Scaling is biased toward temperatures that underestimate annotator uncertainty, with true-label error increasing with annotation entropy.
 We propose ambiguity-aware post-hoc calibrators that optimize proper scoring rules against the full label distribution, with \textbf{Dirichlet-Soft} as the flagship method, substantially improving calibration performance under ambiguous ground truth.
 For settings where only one-hot voted labels are available, \textbf{Label-Smooth Temperature Scaling (LS-TS)} constructs pseudo-soft targets from the model's own confidence without annotator data.
-On CIFAR-10H and ChaosNLI, benchmarks with real multi-annotator distributions, Dirichlet-Soft reduces true-label ECE by 59--86\% relative to Temperature Scaling and achieves the best or tied-best Brier/NLL in 7 of 8 settings; LS-TS reduces ECE by 7--78\% annotation-free.
-Results on ISIC~2019 and DermaMNIST with clinically-informed synthetic annotators provide supportive evidence across medical imaging tasks.
+Across four benchmarks spanning real multi-annotator distributions (CIFAR-10H, ChaosNLI) and clinically-informed synthetic annotations (ISIC~2019, DermaMNIST), our methods substantially improve calibration performance evaluated by ECE, Brier score, and NLL; Dirichlet-Soft reduces true-label ECE by 59--86\% relative to Temperature Scaling and achieves the best or tied-best Brier/NLL in 7 of 8 settings, while LS-TS reduces ECE by 7--78\% without any annotator data.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
