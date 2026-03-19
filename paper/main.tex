@@ -91,7 +91,7 @@ Confidence calibration, ambiguous ground truth, annotator disagreement, temperat
 
 \IEEEPARstart{D}{eep} neural networks are increasingly deployed as decision-support tools in high-stakes domains.  In medical imaging, classifiers assist dermatologists in diagnosing skin lesions and pathologists in identifying malignant tissue~\cite{haenssle2018man,kompa2021second}; in natural language processing, models flag toxic content, assess clinical notes, and support legal document review; in autonomous driving, perception systems make real-time safety decisions under uncertainty~\cite{feng2022review}.  In each of these settings the model outputs not merely a predicted class but an implicit \emph{reliability claim}: the confidence score attached to a prediction is understood by downstream systems and human operators as a direct probability that the prediction is correct.  A radiologist who sees 90\% confidence on a malignant-lesion classification may reduce the level of follow-up scrutiny; a content moderator acting on a 99\% toxicity score may take irreversible action; an autonomous vehicle assigns braking decisions based on its detection confidence.  The faithfulness of stated confidence to empirical correctness — calibration — is therefore as important to deployment safety as accuracy itself~\cite{ovadia2019trust,abdar2021review}.
 
-\paragraph{Confidence calibration.}
+\noindent\textbf{Confidence calibration.}
 This property is formalised as follows.  A well-calibrated classifier $f:\X\to\Delta^{K}$ produces probability vectors $\phat(x)=f(x)$ such that
 \begin{equation}
   \bP\!\bigl(\hat{Y}=Y \mid \phat_{\hat{Y}}(X)=p\bigr) = p, \quad \forall\, p\in[0,1],
@@ -99,7 +99,7 @@ This property is formalised as follows.  A well-calibrated classifier $f:\X\to\D
 \end{equation}
 where $\hat{Y}=\argmax_k\phat_k(X)$ and $\Delta^K$ denotes the $K$-dimensional probability simplex.  Guo et al.~\cite{guo2017calibration} showed that modern high-accuracy networks are systematically overconfident, and proposed Temperature Scaling (TS) — dividing logits by a scalar $T>1$ before softmax — as an effective post-hoc remedy.  Subsequent work extended post-hoc calibration to Platt scaling~\cite{platt1999probabilistic}, isotonic regression~\cite{zadrozny2002transforming}, and Dirichlet calibration~\cite{kull2019beyond}, and studied its behaviour across architectures~\cite{minderer2021revisiting} and tasks~\cite{bai2021don}.  These methods share a common design principle: they fit a correction to the model's logits using a held-out calibration set annotated with \emph{one-hot labels}.
 
-\paragraph{The hidden assumption.}
+\noindent\textbf{The hidden assumption.}
 The calibration condition~\eqref{eq:hard-cal} implicitly assumes that every input $x$ has a unique ground-truth label $Y$.  This assumption is violated whenever the task is inherently ambiguous or subjective.  A skin lesion may be legitimately classified as malignant or benign by different dermatologists, depending on subtle visual features that experts genuinely disagree about~\cite{haenssle2018man}; a natural-language premise may or may not entail a hypothesis depending on pragmatic interpretation~\cite{nie2020what}; a low-resolution object may be categorically ambiguous even to careful human observers~\cite{peterson2019human}.  Such disagreement is not annotation \emph{noise} to be corrected — it is irreducible \emph{aleatoric} uncertainty inherent to the task.  The correct calibration target is therefore not a single label $Y$ but a \emph{distribution over labels} $\pi(\cdot\mid x)\in\Delta^K$, which we call the \emph{annotator distribution}, representing the probability that a randomly selected expert would assign each label to input $x$.  Figure~\ref{fig:intro-ambiguity} illustrates three concrete instances of this phenomenon across image classification, natural language inference, and medical imaging.
 
 \begin{figure*}[t]
@@ -114,10 +114,10 @@ The calibration condition~\eqref{eq:hard-cal} implicitly assumes that every inpu
   \label{fig:intro-ambiguity}
 \end{figure*}
 
-\paragraph{The standard practice and its failure.}
+\noindent\textbf{The standard practice and its failure.}
 Standard practice aggregates annotations by majority vote to obtain a single \emph{voted label} $y^*$ and calibrates against it — and in many practical settings this one-hot label is the only supervision available.  We show this is not merely a rough approximation but a \emph{systematic failure}: calibrating to the voted label optimises the wrong objective, and this miscalibration worsens as genuine annotator disagreement increases.  Strikingly, the most expressive voted-label calibrator (Dirichlet calibration with a full affine transform) consistently \emph{underperforms} simple Temperature Scaling in true-label ECE — more flexibility with the wrong target makes things worse, not better.  In a controlled experiment (Section~\ref{sec:toy}), every standard voted-label calibrator fails to close the gap; the root cause is the calibration \emph{target}, not the method's capacity.  This observation parallels the finding of Stutz et al.~\cite{stutz2023conformal} for conformal prediction, where sets calibrated on voted labels systematically undercover the true annotator distribution.
 
-\paragraph{Contributions.}
+\noindent\textbf{Contributions.}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Problem and theory} (Sections~\ref{sec:problem}--\ref{sec:theory}): we formalise true-label calibration under ambiguous ground truth and prove that Temperature Scaling is biased toward unduly low temperatures, with the miscalibration gap growing monotonically with annotation entropy.
   \item \textbf{Methods} (Section~\ref{sec:methods}): we propose a family of ambiguity-aware post-hoc calibrators — notably \textbf{Dirichlet-Soft} — that use the annotator distribution as the calibration target and require no model retraining; and \textbf{LS-TS}, an annotation-free variant that uses only voted labels yet substantially closes the calibration gap by constructing a data-driven soft pseudo-target.
@@ -129,22 +129,22 @@ Standard practice aggregates annotations by majority vote to obtain a single \em
 \label{sec:related}
 % ─────────────────────────────────────────────────────────────────────────────
 
-\paragraph{Confidence calibration.}
+\noindent\textbf{Confidence calibration.}
 Guo et al.~\cite{guo2017calibration} established that modern high-accuracy networks are systematically overconfident and that Temperature Scaling (TS) is a simple and effective post-hoc remedy.  The multiclass calibration literature has since proposed isotonic regression~\cite{zadrozny2002transforming}, Platt scaling~\cite{platt1999probabilistic}, Dirichlet calibration~\cite{kull2019beyond}, and adaptive per-instance temperature variants~\cite{joy2023sample}.  Minderer et al.~\cite{minderer2021revisiting} showed that Vision Transformers are inherently better calibrated than CNNs, and Bai et al.~\cite{bai2021don} revisit when TS is and is not sufficient.  Kumar et al.~\cite{kumar2019verified} propose verified uncertainty calibration through non-parametric testing.  All of these methods share a common assumption: the calibration set contains one-hot labels, and calibration means aligning confidence with correctness relative to those labels.  We show that this assumption — not the method's architectural capacity — is the limiting factor when labels are genuinely distributional.
 
-\paragraph{Soft labels, label smoothing, and knowledge distillation.}
+\noindent\textbf{Soft labels, label smoothing, and knowledge distillation.}
 Training-time approaches have explored the benefits of soft targets.  Label smoothing~\cite{szegedy2016rethinking,muller2019does} adds a fixed uniform component to one-hot targets and has been observed to improve both accuracy and calibration; however, it applies a dataset-global constant regardless of per-instance annotator disagreement.  Knowledge distillation~\cite{hinton2015distilling} uses teacher model outputs as soft training targets, improving student generalisation and calibration.  Thulasidasan et al.~\cite{thulasidasan2019mixup} show that Mixup training substantially improves calibration by encouraging confident predictions only when training examples are well-separated.  Collins et al.~\cite{collins2022eliciting} collect CIFAR-10S, a companion to CIFAR-10H with individually elicited soft labels from every annotator, and demonstrate that training with per-annotator soft labels improves calibration over aggregated hard labels.  Our work is the post-hoc calibration counterpart: we do not retrain the model, but instead re-target the calibration objective to the annotator distribution using only cached logits.
 
-\paragraph{Annotation disagreement and multi-annotator learning.}
+\noindent\textbf{Annotation disagreement and multi-annotator learning.}
 Dense annotation datasets~\cite{peterson2019human,nie2020what} and multi-annotator learning methods~\cite{uma2021learning,rodrigues2018deep} have documented the ubiquity of label disagreement across domains.  Aroyo and Welty~\cite{aroyo2015truth} argue that disagreement is not noise but signal, and that discarding it by majority aggregation loses information that is critical for understanding task difficulty.  Gordon et al.~\cite{gordon2022jury} and Plank~\cite{plank2022problem} highlight systematic epistemological problems with annotation aggregation in NLP, showing that models trained on majority labels inherit structural biases against minority annotator perspectives.  Baan et al.~\cite{baan2022stop} show that ECE is theoretically ill-defined when annotators genuinely disagree, because no unique ``correct'' label exists to serve as the reference; they propose instance-level uncertainty measures.  We complement this critique by retaining $\ECEtrue$ as a practical metric — it quantifies the overconfidence a user experiences when drawing a single label $\tilde{y}\sim\pi(\cdot|x)$ at deployment time, mirroring realistic usage — while supplementing it with Brier score and NLL, which are strictly proper scoring rules that directly penalise divergence from the full annotator distribution $\pihat$.  Khurana et al.~\cite{crowd_calibrator2024} study how annotator disagreement can inform selective abstention in NLP; unlike their approach, our framework targets all predictions and is applicable across vision and language without task-specific thresholding.
 
-\paragraph{Proper scoring rules and distributional evaluation.}
+\noindent\textbf{Proper scoring rules and distributional evaluation.}
 Gneiting and Raftery~\cite{gneiting2007strictly} provide the foundational theory of proper scoring rules: a loss is \emph{strictly proper} if and only if it is uniquely minimized when the predicted distribution equals the true distribution.  Brier score and NLL are canonical instances.  This perspective motivates our choice of calibration objective: minimizing cross-entropy against $\pihat(x)$ is strictly proper over the predicted distribution $\hat{p}(x)$, while minimizing against a one-hot label is only proper with respect to a degenerate Dirac distribution and misidentifies the optimal calibrated output whenever $\pihat$ is non-degenerate.  The proper scoring framework also clarifies why Dirichlet calibration with voted targets ($\mathrm{Dirichlet\text{-}Hard}$) is not merely suboptimal but is consistent for the \emph{wrong} estimand, explaining the empirical finding that it underperforms TS.
 
-\paragraph{Conformal prediction under ambiguous ground truth.}
+\noindent\textbf{Conformal prediction under ambiguous ground truth.}
 Stutz et al.~\cite{stutz2023conformal} demonstrate the set-prediction analogue of our finding: conformal prediction sets calibrated on voted labels systematically undercover the true annotator distribution, with coverage gaps of up to 10\% on dermatology data.  Their Monte Carlo conformal approach samples from the annotator distribution to compute coverage, closely paralleling our Monte Carlo ECE evaluation ($S=100$ draws per example).  Angelopoulos and Bates~\cite{angelopoulos2023conformal} provide foundational methodology for distribution-free uncertainty quantification, including the conformal framework that Stutz et al.\ build on.  Our work addresses point-estimate calibration rather than set coverage: we produce well-calibrated scalar confidence scores, which conformal prediction does not.  Calibration under covariate shift~\cite{park2020calibrated,wang2020transferable} is orthogonal to our label-ambiguity setting and assumes a unique ground truth throughout.
 
-\paragraph{Uncertainty quantification in high-stakes applications.}
+\noindent\textbf{Uncertainty quantification in high-stakes applications.}
 The deployment literature motivates the practical urgency of this problem.  Kompa et al.~\cite{kompa2021second} conduct a large-scale empirical study showing that medical image classifiers are consistently overconfident, even after calibration, and that this overconfidence degrades clinical decision quality.  Ovadia et al.~\cite{ovadia2019trust} demonstrate that popular uncertainty estimation methods (dropout, deep ensembles, variational inference) exhibit significantly degraded calibration under distribution shift, highlighting that single-point calibration benchmarks may be overly optimistic.  Feng et al.~\cite{feng2022review} survey uncertainty quantification in autonomous driving, where overconfident detections directly contribute to unsafe manoeuvres.  These findings establish the applied context for our work: in each of these domains, label ambiguity is simultaneously a property of the task and an unaddressed source of calibration error.  The present paper provides the first systematic post-hoc calibration framework that directly targets this source.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ The \textbf{voted-label ECE} $\ECEvoted$ is the standard ECE against $y^*$.  The
 \label{sec:toy}
 % ─────────────────────────────────────────────────────────────────────────────
 
-\paragraph{Setup.}
+\noindent\textbf{Setup.}
 We construct a 3-class 2D Gaussian dataset with three clusters:
 $x\sim\mathcal{N}((-3.2,1.1), \operatorname{diag}(0.60,0.45))$ for class~0 with $\pi=[1,0,0]$;
 $x\sim\mathcal{N}((0,0), \operatorname{diag}(1.15,0.75))$ for the ambiguous cluster with $\pi=[0,0.70,0.30]$;
@@ -198,7 +198,7 @@ A 2-layer MLP (64 hidden units per layer) is trained on voted labels, and all ca
   \label{fig:toy}
 \end{figure*}
 
-\paragraph{Results.}
+\noindent\textbf{Results.}
 Figure~\ref{fig:toy} shows that this mismatch is a structural consequence of the voted-label target.  TS reduces $\ECEvoted$ from $3.25\%$ to $1.11\%$, but \emph{increases} $\ECEtrue$ from $6.26\%$ to $9.64\%$.  Platt scaling behaves similarly ($\ECEvoted=0.68\%$, $\ECEtrue=9.70\%$), and Histogram Binning likewise ($\ECEvoted=1.32\%$, $\ECEtrue=9.65\%$).  Figure~\ref{fig:toy}\textbf{(f)} further shows that this residual error is concentrated in the ambiguous cluster for all three methods.  TS sets $T=0.62<1$, boosting confidence toward the voted target and thereby pushing the model \emph{further} from the true ambiguous label distribution.  The failure is therefore not specific to TS: standard post-hoc methods are useful for $\ECEvoted$, but the voted-label target makes them ineffective for $\ECEtrue$.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ All methods in this paper are \emph{post-hoc}: they operate on cached logits fro
 
 \subsection{Ambiguity-Aware Calibration Methods}
 
-\paragraph{Soft-Label Temperature Scaling (SLTS).}
+\noindent\textbf{Soft-Label Temperature Scaling (SLTS).}
 SLTS minimizes the cross-entropy between the calibrated output and the empirical label distribution:
 \begin{align}
   \mathcal{L}_{\text{SLTS}}(T)
@@ -258,7 +258,7 @@ SLTS uses the same single-parameter family as TS but with a target that correctl
 The per-example loss $\ell(q;\pihat) = -\sum_k \pihat_k \log q_k$ is a strictly proper scoring rule over $q\in\Delta^K$: it is uniquely minimised at $q=\pihat(x)$ for each $x$.  Consequently, within the constrained family $\{\operatorname{softmax}(z/T): T>0\}$, $\mathcal{L}_{\text{SLTS}}$ identifies the temperature $T^*$ that minimises $\mathrm{KL}(\pihat\|\operatorname{softmax}(z/T^*))$, targeting the correct distributional objective, unlike $\mathcal{L}_{\text{TS}}$, which targets the one-hot voted label.  Note that $T^*$ need not achieve $\operatorname{softmax}(z/T^*)=\pihat$ exactly within this one-parameter family; the proper scoring rule property guarantees correctness of the \emph{target}, not achievability within the constrained family.
 \end{proposition}
 
-\paragraph{Monte Carlo Temperature Scaling (MCTS).}
+\noindent\textbf{Monte Carlo Temperature Scaling (MCTS).}
 When individual annotation records are available rather than pre-aggregated label distributions, \textbf{MCTS} draws $S$ samples $a_{is}\sim\pihat(x_i)$ per example and minimizes
 $\mathcal{L}_{\text{MCTS}}(T) = -\frac{1}{nS}\sum_{i,s} \log\operatorname{softmax}(z_i/T)_{a_{is}}$.
 Formally, $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, so MCTS converges to SLTS in expectation as $S\to\infty$.
@@ -288,16 +288,16 @@ Table~\ref{tab:mcts} shows that \emph{even $S=1$} achieves ECE$_\text{true}$ of 
   \end{tabular}
 \end{table}
 
-\paragraph{Vector Scaling (VS).}
+\noindent\textbf{Vector Scaling (VS).}
 Extends SLTS with per-class temperatures $\mathbf{T}=(T_1,\ldots,T_K)$, accommodating datasets where some classes are systematically more ambiguous than others.
 
-\paragraph{Distributional Isotonic Regression (IR-Soft).}
+\noindent\textbf{Distributional Isotonic Regression (IR-Soft).}
 Fits a monotone mapping from predicted confidence to mean annotator accuracy via the Pool Adjacent Violators Algorithm (PAVA), using the empirical label distribution as target.
 
-\paragraph{SoftPlatt.}
+\noindent\textbf{SoftPlatt.}
 The diagonal affine transform $W\cdot z+b$ (same structure as Platt) fitted against the annotator distribution via KL divergence.  This isolates the contribution of the distributional target from any architectural difference.
 
-\paragraph{Dirichlet-Soft.}
+\noindent\textbf{Dirichlet-Soft.}
 The full $K\!\times\!K$ affine $Wz+b$ fitted by minimizing $\KL(\pihat(x)\|\operatorname{softmax}(Wz+b))$ with ODIR regularization ($\lambda=10^{-3}$) \cite{kull2019beyond}.  This is the most expressive parametric ambiguity-aware calibrator.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ Define the pseudo-target distribution
 and minimize $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these targets.
 The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly across all $K$ classes.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
-\paragraph{Theoretical interpretation.}
+\noindent\textbf{Theoretical interpretation.}
 The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: the expected pseudo-label mass on the voted class equals the average model confidence, $\mathbb{E}[\tpihat^{\mathrm{LS}}_{y^*}] = \mathbb{E}[\hat p_{y^*}]$.  Algorithmically, LS-TS can be viewed as a single E-step of an EM algorithm in which the latent annotator distribution is estimated from the current (pre-calibration) model, followed by one M-step that optimises $T$ given those pseudo-labels.  This connection to knowledge distillation \cite{hinton2015distilling} explains the self-referential nature of the approach: the uncalibrated model both supplies the pseudo-targets and is then calibrated against them.  Section~\ref{sec:ablation-lsts} compares LS-TS against three simpler smoothing strategies and confirms that the data-driven global $\bar\varepsilon$ is the key design choice.  Appendix~\ref{app:ats} further shows that even an \emph{adaptive} voted-label calibrator (one that learns a per-instance temperature from logit-derived features) fails to improve over TS, reinforcing that the target distribution, not the flexibility of the calibration map, is the limiting factor.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -328,10 +328,10 @@ The smoothing weight $\bar\varepsilon$ satisfies a moment-matching fixed point: 
 
 We evaluate on four benchmarks with multi-annotator data, each with two backbones: CIFAR-10H (ResNet-50, ViT-B/16), ChaosNLI (RoBERTa-Large, DeBERTa-v3), ISIC~2019 (EfficientNet-B4, ViT-S/16), and DermaMNIST (ResNet-18, ViT-S/16).
 
-\paragraph{Baselines.}
+\noindent\textbf{Baselines.}
 We compare against (i)~\textbf{Uncalibrated}: raw softmax; (ii)~\textbf{TS}: Temperature Scaling on voted labels \cite{guo2017calibration}; (iii)~\textbf{ATS} (Adaptive Temperature Scaling \cite{joy2023sample}): per-instance temperature predicted from four logit-derived features ($\max_k z_k$, prediction entropy, top-2 margin, top-1 confidence) via a linear model, trained with the same voted-label NLL as TS (the most direct adaptive extension of TS without annotator data); (iv)~\textbf{Platt (PS)}: per-class weight and bias on logits, calibrated against voted labels \cite{platt1999probabilistic,kull2019beyond}; (v)~\textbf{Dirichlet-Hard}: Dirichlet calibration \cite{kull2019beyond} with the full $K\times K$ weight matrix and bias, calibrated against voted labels.  Dirichlet-Hard uses the \emph{same architecture} as our Dirichlet-Soft but with voted-label targets; the contrast isolates the effect of the calibration target from model capacity.  ATS similarly tests whether richer architecture, without changing the target, is sufficient to fix the calibration gap.
 
-\paragraph{Metrics.}
+\noindent\textbf{Metrics.}
 We report two families of metrics, which differ in how the ground-truth label is treated:
 
 \textbf{Binning-based ECE metrics} ($\ECEtrue$, aECE, cwECE) are estimated by drawing $S=100$ labels $\tilde{y}^{(s)}_i \sim \pihat(x_i)$ per example and averaging calibration error over draws.
@@ -354,7 +354,7 @@ We abbreviate $\ECEtrue$, aECE, cwECE, Br, NLL throughout.
 \label{sec:cifar10h}
 % ─────────────────────────────────────────────────────────────────────────────
 
-\paragraph{Dataset and models.}
+\noindent\textbf{Dataset and models.}
 CIFAR-10H \cite{peterson2019human} provides ${\approx}51$ human annotations per image for the 10\,000-image CIFAR-10 test set, directly exposing perceptual ambiguity in low-resolution natural images through repeated human labeling.  The test set is split into calibration ($n=5{,}000$) and evaluation ($5{,}000$) by stratified sampling (seed 42).  We evaluate two architectures:
 \textbf{ResNet-50} \cite{he2016deep} pretrained on ImageNet-1k, fine-tuned for 30 epochs (AdamW, cosine annealing), achieving 97.3\% top-1 accuracy.
 \textbf{ViT-B/16} \cite{dosovitskiy2021image} pretrained on ImageNet-21k, fine-tuned with the same protocol, achieving 98.1\% top-1 accuracy.
@@ -448,7 +448,7 @@ CIFAR-10H \cite{peterson2019human} provides ${\approx}51$ human annotations per 
   \label{fig:reliability-chaosnli-main}
 \end{figure*}
 
-\paragraph{Results.}
+\noindent\textbf{Results.}
 Both CIFAR-10H backbones show the same pattern: hard-label baselines still leave 4--5\% ECE$_\text{true}$, while ambiguity-aware methods reduce it to below 2\%.  Notably, ATS (adaptive per-instance temperature) achieves $4.10\%$ ECE on both architectures, no better than global TS ($4.29\%$ / $4.48\%$) and far behind LS-TS ($1.57\%$ / $2.37\%$), confirming that per-instance temperature adaptation cannot compensate for the wrong calibration target.  Dirichlet-Soft achieves the best Brier score and NLL on both architectures (0.109/0.271 on ResNet-50; 0.100/0.255 on ViT-B/16), confirming that expressive distribution-aware calibrators provide the best distributional fit.  LS-TS, using only voted labels, already reduces ECE from 4.29\% to 1.57\% (ResNet-50) and from 4.48\% to 2.37\% (ViT-B/16), competitive with fully ambiguity-aware methods.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -458,10 +458,10 @@ Both CIFAR-10H backbones show the same pattern: hard-label baselines still leave
 
 We next evaluate on \textbf{ChaosNLI} \cite{nie2020what}: 100 human annotations per example for the combined SNLI+MNLI subset ($n=3{,}113$), where disagreement reflects genuine semantic ambiguity rather than annotation noise.  We split the data into calibration and test sets (50/50, stratified by majority-vote label to preserve class balance).  We evaluate \textbf{RoBERTa-Large} \cite{liu2019roberta} and \textbf{DeBERTa-v3-base} \cite{he2021debertav3}, both fine-tuned on MNLI training data; ChaosNLI draws from the SNLI and MNLI dev/test splits, so no training examples are re-used at evaluation.
 
-\paragraph{Results.}
+\noindent\textbf{Results.}
 The same pattern holds in NLI: hard-label baselines leave 10--12\% ECE, and ATS ($11.36\%$ on RoBERTa-L, $13.09\%$ on DeBERTa-v3) performs \emph{worse} than global TS on DeBERTa-v3, further demonstrating that adaptive capacity without the correct target is ineffective.  The best distributional fit is achieved by Dirichlet-Soft and SoftPlatt: on RoBERTa-L, SoftPlatt achieves the best Brier (0.509 vs.\ Dir-Soft 0.510) and both tie on NLL (0.839); on DeBERTa-v3, Dirichlet-Soft achieves the best Brier (0.509) and NLL (0.836).  LS-TS reduces ECE from 10.55\% to 4.16\% (RoBERTa-L) and from 11.63\% to 2.65\% (DeBERTa-v3) using only voted labels, outperforming all hard-label baselines by a wide margin.
 
-\paragraph{ATS vs.\ LS-TS: target matters more than architecture.}
+\noindent\textbf{ATS vs.\ LS-TS: target matters more than architecture.}
 Table~\ref{tab:ats} confirms that ATS fails to improve over TS in all 8 settings and in several cases degrades it (ECE rises from $11.63\%$ to $13.09\%$ on DeBERTa-v3; from $16.59\%$ to $17.53\%$ on ISIC ViT-S/16).  The per-instance temperature learned from logit features adapts to model uncertainty, not to annotator disagreement.  In contrast, LS-TS, which uses the same global-temperature architecture as TS but shifts the calibration target toward a smoothed distribution, reduces ECE by 7--78\% across all 8 settings without any annotator data (see Appendix~\ref{app:ats} for full analysis).
 
 \begin{table*}[t]
@@ -579,10 +579,10 @@ We evaluate on \textbf{ISIC~2019} \cite{tschandl2018ham10000,combalia2019bcn} (8
   \end{tabular}}
 \end{table*}
 
-\paragraph{ISIC 2019 results.}
+\noindent\textbf{ISIC 2019 results.}
 The same pattern holds under synthetic annotators: Dirichlet-Soft achieves the best Brier and NLL on both backbones (0.518/1.084 on ENet-B4; 0.563/1.175 on ViT-S/16), while IR-Soft achieves the lowest ECE.  LS-TS halves the ECE of TS on ENet-B4 (18.54\%$\to$9.34\%) using only voted labels; the improvement is smaller on ViT-S/16 (16.59\%$\to$15.49\%), where model confidence is a weaker proxy for annotation ambiguity.
 
-\paragraph{Annotator confusion model.}
+\noindent\textbf{Annotator confusion model.}
 Figure~\ref{fig:isic-confusion} shows the clinically calibrated $8\times8$ confusion matrix used to generate synthetic annotations for ISIC~2019.  The MEL/NV pair (melanoma/nevi, orange dashed) is the most consequential and most confused: diagonal rates of 73\%/76\% with 14\%/15\% cross-confusion, reflecting the well-documented difficulty of distinguishing early melanoma from benign nevi \cite{haenssle2018man}.  The AK/BKL/SCC cluster (purple dotted) forms a second high-confusion group (diagonal 65--67\%), capturing clinically significant overlap between actinic keratosis and squamous cell carcinoma.  The mean diagonal agreement $\bar{C}_{ii}=75\%$ matches the inter-reader agreement reported by Liu et al.~\cite{liu2020deep}.  Full matrix values and construction details are given in Appendix~\ref{app:isic-confusion}.
 
 \begin{figure}[t]
@@ -767,19 +767,19 @@ Table~\ref{tab:multiseed} and Figure~\ref{fig:robustness-main} summarise three r
 \label{sec:discussion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-\paragraph{Sacrificing voted-label calibration.}
+\noindent\textbf{Sacrificing voted-label calibration.}
 A natural question is whether ambiguity-aware methods degrade $\ECEvoted$.  This is expected behaviour: voted-label calibration is epistemically unreliable when annotators genuinely disagree, as the voted label overstates the majority-class probability.  Practitioners who must satisfy a hard $\ECEvoted$ constraint can apply TS on top of Dirichlet-Soft or SLTS outputs.
 
-\paragraph{Practical guidelines.}
+\noindent\textbf{Practical guidelines.}
 Use \textbf{Dirichlet-Soft} as the default when annotator distributions are available: it achieves the best or near-best Brier score and NLL on most benchmarks (best NLL in 7/8 settings; best or tied Brier in 7/8 settings) while maintaining competitive ECE; SoftPlatt is competitive on Brier for NLI tasks.  Use \textbf{SLTS} when a single-parameter method is preferred for simplicity; \textbf{IR-Soft} when the lowest ECE is the sole criterion; and \textbf{LS-TS} when the calibration set contains only one-hot voted labels.
 
-\paragraph{Connection to proper scoring rules and distributional calibration.}
+\noindent\textbf{Connection to proper scoring rules and distributional calibration.}
 The shift from one-hot to soft targets is not merely a methodological convenience: it corresponds to replacing an \emph{improper} calibration criterion with a \emph{proper} one.  As Proposition~\ref{prop:proper} makes explicit, minimizing the cross-entropy against $\pihat$ is equivalent to minimizing $\mathrm{KL}(\pihat\|\hat{p})$, a divergence that is uniquely minimized at $\hat{p}=\pihat$.  This places our framework within the broader theory of proper scoring rules \cite{gneiting2007strictly}, where the Brier score and NLL play the role of strictly proper objectives.  Voted-label calibration corresponds to evaluating a proper scoring rule against a \emph{degenerate} distribution $\delta_{y^*}$ that ignores genuine uncertainty; our methods replace this with the true ambiguity-aware distribution.  This connection also clarifies why the \emph{same} architectural class (temperature scaling) can be correct or incorrect depending solely on the target: the parameterization is not the bottleneck.
 
-\paragraph{Extension to regression and ordinal settings.}
+\noindent\textbf{Extension to regression and ordinal settings.}
 While this paper focuses on classification, the core argument—that post-hoc calibration should target the correct marginal distribution over labels rather than a single voted label—applies equally to regression tasks where annotation ambiguity takes the form of disagreement over continuous or ordinal outcomes.  In such settings, the annotator distribution $\pi(\cdot\mid x)$ can be estimated from repeated annotations and used to define soft regression targets, replacing the typical mean-squared-error loss with a proper scoring rule against the empirical outcome distribution.  We leave the development of ambiguity-aware post-hoc calibration for regression as future work.
 
-\paragraph{Limitations.}
+\noindent\textbf{Limitations.}
 Full ambiguity-aware calibration (including Dirichlet-Soft) requires multi-annotator labels at calibration time.  When only voted labels are available, LS-TS remains useful but does not fully match Dirichlet-Soft, particularly on datasets where model confidence diverges from annotation ambiguity (e.g., ISIC~2019 ViT-S/16).  ISIC~2019 and DermaMNIST rely on synthetic annotators derived from clinician-reported agreement.  Crucially, this is a \emph{class-conditional} model: annotation confusion depends only on the consensus class label, not on instance-level visual difficulty.  Real multi-reader medical datasets with per-image reader distributions would provide stronger validation and would capture the instance-level variation our synthetic model does not; concrete candidates include VinDr-CXR \cite{nguyen2022vindr} (3 independent radiologists per chest X-ray, 15k images) and CheXpert \cite{irvin2019chexpert} (5 independent radiologist annotations on the test set), both of which provide true per-image annotator distributions directly amenable to our framework.  Conclusions about absolute ECE magnitudes on these two datasets should be interpreted with this in mind; the relative ranking of methods is expected to be robust to the specific confusion matrix used, as confirmed by the multi-seed annotation-generation ablation (Appendix~\ref{app:multiseed}).
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -802,16 +802,16 @@ We formalized the problem of confidence calibration under ambiguous ground truth
 
 All four benchmarks in this paper are appropriate for studying calibration under ambiguous ground truth, but they exhibit ambiguity in slightly different ways.
 
-\paragraph{CIFAR-10H.}
+\noindent\textbf{CIFAR-10H.}
 Peterson et al.~\cite{peterson2019human} introduced CIFAR-10H by collecting a full distribution of human labels for each image in the CIFAR-10 test set, explicitly to capture \emph{human perceptual uncertainty}.  The ambiguous examples are typically low-resolution images whose visual evidence supports multiple plausible classes for human observers.  In this benchmark, the label distribution is therefore directly observed from repeated human annotation, making it a clean testbed for ambiguity-aware calibration.
 
-\paragraph{ChaosNLI.}
+\noindent\textbf{ChaosNLI.}
 Nie et al.~\cite{nie2020what} introduced ChaosNLI to study \emph{collective human opinions} on natural language inference.  Each example receives 100 human labels, and the paper reports that substantial disagreement is common rather than exceptional.  This ambiguity is semantic rather than perceptual: differences in pragmatic assumptions, underspecification, and sentence interpretation lead reasonable annotators to assign different NLI labels to the same premise--hypothesis pair.
 
-\paragraph{ISIC~2019.}
+\noindent\textbf{ISIC~2019.}
 ISIC~2019 is a multiclass dermoscopic lesion diagnosis benchmark assembled from several clinical sources, including HAM10000 \cite{tschandl2018ham10000} and BCN20000 \cite{combalia2019bcn}.  The task itself is ambiguity-prone because several lesion categories share overlapping visual morphology, and the challenge was designed to reflect the more realistic task of differential diagnosis rather than a simpler benign-versus-malignant decision.  Because the public challenge release does not provide per-image reader distributions, we model ambiguity using synthetic annotators calibrated to dermatologist confusion patterns and reader agreement reported in Liu et al.~\cite{liu2020deep}.  This preserves the core property relevant to our study: in dermatology, a single image can support multiple clinically plausible labels.
 
-\paragraph{DermaMNIST.}
+\noindent\textbf{DermaMNIST.}
 DermaMNIST \cite{yang2023medmnist} is a standardized $28\times28$ version of the dermatology benchmark derived from HAM10000 \cite{tschandl2018ham10000}.  HAM10000 consists of dermatoscopic images of common pigmented lesions collected in clinical practice, where diagnosis already involves fine-grained distinctions among visually similar categories such as melanoma, nevi, and benign keratoses.  DermaMNIST inherits this medical ambiguity from HAM10000 and, because it is aggressively downsampled for lightweight benchmarking, removes additional visual detail that can further increase label uncertainty.  As with ISIC~2019, we therefore evaluate calibration against an ambiguity-aware label distribution rather than treating the majority diagnosis as uniquely correct.
 
 \section{Proof of Proposition~\ref{prop:ts-bias}}
@@ -828,26 +828,26 @@ The soft-label loss on $\mathcal{D}_\text{amb}$ is $\mathcal{L}_{\text{soft}}(T;
 
 We formalize the argument given in the proof sketch in the main text.
 
-\paragraph{Setup.}
+\noindent\textbf{Setup.}
 Let $p=\phat_{\hat{c}}(x)$ denote the model's predicted confidence for the top class $\hat{c}$ and let $q=\pi_{\hat{c}}(x)\in(0,1]$ denote the true annotator probability for that class.  We assume the model is trained against voted labels, so $p$ is approximately constant across examples with the same voted label regardless of their annotation entropy $H(x)$.
 
-\paragraph{Voted-label calibration error contribution.}
+\noindent\textbf{Voted-label calibration error contribution.}
 For example $x_i$ in confidence bin $B_b$ (where $\overline{p}(B_b)\approx p$), the per-example voted-label calibration error is $|p - \mathbf{1}[\hat{c}=y^*]|$.  Since $\hat{c}=y^*$ for correctly-classified ambiguous examples (the model predicts the majority class), this contribution is approximately $|p-1|$ for examples where the model makes the right hard prediction, independent of $H(x)$.
 
-\paragraph{True-label calibration error contribution.}
+\noindent\textbf{True-label calibration error contribution.}
 The per-example true-label calibration error is $|p - \pi_{\hat{c}}(x)|=|p-q|$.
 
-\paragraph{Excess true-label error relative to voted-label evaluation.}
+\noindent\textbf{Excess true-label error relative to voted-label evaluation.}
 The per-example excess contribution is:
 \begin{align}
   \delta(x) &= |p - q| - |p - \mathbf{1}[\hat{c}=y^*]|.
 \end{align}
 When the model is correctly calibrated to voted labels ($p\approx\mathbf{1}[\hat{c}=y^*]$ in expectation), the voted contribution is near zero: $|p-1|\approx 0$ for high-accuracy bins and $|p-0|=p$ for error bins.  For unambiguous examples ($H(x)=0$), $q=\pi_{y^*}=1$, so $\delta(x)=|p-1|-|p-1|=0$.
 
-\paragraph{Monotonicity.}
+\noindent\textbf{Monotonicity.}
 As $H(x)$ increases, $q=\pi_{y^*}(x)$ decreases below 1 (more probability mass shifts to non-majority classes).  Specifically, for a $K$-class problem with uniform annotator distribution at maximum entropy, $q=1/K$.  The true-label contribution $|p-q|$ increases strictly as $q$ decreases from 1 (since $p>q$ for a well-trained model predicting the majority class with confidence exceeding the majority probability).  The voted-label contribution $|p-\mathbf{1}[\hat{c}=y^*]|$ is unaffected by $H(x)$.  Therefore $\delta(x)=|p-q|-|p-\mathbf{1}[\hat{c}=y^*]|$ is non-decreasing in $H(x)$, and strictly increasing whenever $p>q>0$.
 
-\paragraph{Aggregate monotonicity.}
+\noindent\textbf{Aggregate monotonicity.}
 The aggregate excess true-label error relative to voted-label evaluation equals $\sum_b\frac{|B_b|}{n}\sum_{i\in B_b}\delta(x_i)/|B_b|$.  Since $\delta(x_i)$ is non-decreasing in $H(x_i)$ and bins contain a mixture of examples, this discrepancy grows with the mean annotation entropy of the test set.  $\square$
 
 \begin{remark}[Independence assumption]
@@ -857,14 +857,14 @@ Assumption~(i) (that $\phat_{\hat{c}}(x)$ is approximately independent of $H(x)$
 \section{Monte Carlo Temperature Scaling (MCTS)}
 \label{app:mcts-convergence}
 
-\paragraph{Method.}
+\noindent\textbf{Method.}
 When individual annotation records are available rather than pre-aggregated label distributions, \textbf{MCTS} draws $S$ samples $a_{is}\sim\pihat(x_i)$ per example and minimizes
 \[
   \mathcal{L}_{\text{MCTS}}(T) = -\frac{1}{nS}\sum_{i=1}^n\sum_{s=1}^S \log\operatorname{softmax}(z_i/T)_{a_{is}}.
 \]
 MCTS is a strictly more general formulation than SLTS: it applies even when only raw annotation samples are stored rather than pre-computed frequency vectors.
 
-\paragraph{A single annotation suffices.}
+\noindent\textbf{A single annotation suffices.}
 The key practical implication of MCTS is that \emph{even $S=1$} (a single randomly drawn annotation per calibration example) already achieves ECE$_\text{true}$ of 1.53\%, matching SLTS to within rounding error and reducing TS's 4.29\% by $64\%$.  This means that any dataset where each example has been annotated even once by a randomly selected annotator (rather than deterministically assigned the majority label) is immediately amenable to strong ambiguity-aware calibration.  Formally, since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to SLTS in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} (main text) confirms the fast convergence: the ECE gap between $S=1$ and $S\to\infty$ is only $0.02$ pp; in practice $S=20$--$50$ is sufficient to reduce variance to negligible levels.
 
 \section{Ablation: Calibration Set Size}
@@ -872,7 +872,7 @@ The key practical implication of MCTS is that \emph{even $S=1$} (a single random
 
 We fix the annotation count at the full observed value and vary the fraction of calibration examples used, from 5\% to 100\% (stratified subsampling by class).  Results are shown for all four benchmarks and eight architectures.
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_calsize_cifar_r50.pdf}%
   \hfill%
@@ -883,9 +883,9 @@ We fix the annotation count at the full observed value and vary the fraction of 
     TS's ECE is flat across all calibration set sizes; ambiguity-aware methods converge within 5--10\%.
   }
   \label{fig:calsize-cifar}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_calsize_chaosnli.pdf}%
   \hfill%
@@ -896,9 +896,9 @@ We fix the annotation count at the full observed value and vary the fraction of 
     NLI models show the same pattern: TS is flat near 10--13\% while soft methods stabilise near 3--4\%.
   }
   \label{fig:calsize-chaosnli}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_calsize_isic_enet.pdf}%
   \hfill%
@@ -909,9 +909,9 @@ We fix the annotation count at the full observed value and vary the fraction of 
     IR-Soft achieves the lowest ECE across all calibration set sizes on both architectures.
   }
   \label{fig:calsize-isic}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_calsize_derm_r18.pdf}%
   \hfill%
@@ -922,9 +922,9 @@ We fix the annotation count at the full observed value and vary the fraction of 
     Ambiguity-aware methods converge quickly; TS remains flat regardless of calibration set size.
   }
   \label{fig:calsize-derm}
-\end{figure}
+\end{figure*}
 
-\paragraph{Key findings.}
+\noindent\textbf{Key findings.}
 Across all four benchmarks and eight architectures, TS's ECE does not decrease with more calibration data, confirming that the degradation is a target bias rather than a variance artifact.  In contrast, SLTS achieves stable low ECE from as few as 5--10\% of the calibration set, and IR-Soft and Dirichlet-Soft converge even faster on most benchmarks.  This suggests that the annotation distribution (not the number of calibration examples) is the limiting factor for ambiguity-aware methods.
 
 \section{Ablation: Number of Annotations per Image}
@@ -934,7 +934,7 @@ We study how performance depends on the number of annotations $m$ per calibratio
 We fix the calibration set size and the annotation generation seed, and sweep $m$ from $1$ to $50$, resampling the soft targets for each value of $m$.
 Results are shown for CIFAR-10H, which provides up to ${\approx}51$ real annotations per image; we subsample from the full pool.
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_annot_count_cifar_r50.pdf}%
   \hfill%
@@ -945,9 +945,9 @@ Results are shown for CIFAR-10H, which provides up to ${\approx}51$ real annotat
     Ambiguity-aware methods are stable for $m\geq 2$; TS rises with $m$ due to target mismatch; LS-TS converges by $m\approx 4$.
   }
   \label{fig:annot-count-cifar-app}
-\end{figure}
+\end{figure*}
 
-\paragraph{Key findings.}
+\noindent\textbf{Key findings.}
 Ambiguity-aware calibration is robust to annotation count once $m\geq 2$: SLTS, Dirichlet-Soft, and IR-Soft achieve near-minimal ECE with only a handful of annotations per image and do not improve substantially beyond $m=5$.  LS-TS converges quickly (by $m\approx 4$) because the global smoothing parameter $\varepsilon$ stabilises once each image has at least a few annotations.  Standard Temperature Scaling shows the opposite trend: its ECE$_\text{true}$ \emph{increases} with $m$ because a higher temperature is required to match the more diffuse annotation distribution, exposing the fundamental target mismatch.
 
 \section{Statistical Significance: Multi-Seed Analysis}
@@ -957,7 +957,7 @@ For CIFAR-10H and ChaosNLI we repeat the evaluation with five random seeds (42--
 
 Across all benchmarks and architectures, standard deviations are small relative to the ECE gaps: TS vs.\ ambiguity-aware methods differ by $2$--$10\times$ the standard deviation, confirming statistical robustness of the results in Tables~\ref{tab:cifar}--\ref{tab:derm}.  Bar charts for all architectures are shown below.
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_cifar.pdf}%
   \hfill%
@@ -967,9 +967,9 @@ Across all benchmarks and architectures, standard deviations are small relative 
     Left: ResNet-50.  Right: ViT-B/16.
   }
   \label{fig:multiseed-cifar}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_chaosnli.pdf}%
   \hfill%
@@ -979,9 +979,9 @@ Across all benchmarks and architectures, standard deviations are small relative 
     Left: RoBERTa-Large.  Right: DeBERTa-v3-base.
   }
   \label{fig:multiseed-chaosnli}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_isic_enet.pdf}%
   \hfill%
@@ -992,9 +992,9 @@ Across all benchmarks and architectures, standard deviations are small relative 
     Seed varies the annotation generation; val/test split is fixed.
   }
   \label{fig:multiseed-isic}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.49\linewidth]{figs/fig_multiseed_derm_r18.pdf}%
   \hfill%
@@ -1005,7 +1005,7 @@ Across all benchmarks and architectures, standard deviations are small relative 
     Seed varies the annotation generation; val/test split is fixed.
   }
   \label{fig:multiseed-derm}
-\end{figure}
+\end{figure*}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Reliability Diagrams}
@@ -1016,100 +1016,100 @@ Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are
 
 \subsection{CIFAR-10H}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_cifar_vit.pdf}
   \caption{\textbf{Reliability diagrams (summary) — CIFAR-10H ViT-B/16.}}
   \label{fig:reliability-cifar-vit-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_cifar.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — CIFAR-10H ResNet-50 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-cifar}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_cifar_vit.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — CIFAR-10H ViT-B/16 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-cifar-vit}
-\end{figure}
+\end{figure*}
 
 \subsection{ChaosNLI}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_chaosnli_deberta.pdf}
   \caption{\textbf{Reliability diagrams (summary) — ChaosNLI DeBERTa-v3-base.}}
   \label{fig:reliability-chaosnli-deberta-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_chaosnli.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — ChaosNLI RoBERTa-Large (ECE$_\text{true}$).}
     NLI models are severely overconfident before calibration; ambiguity-aware methods substantially correct this.}
   \label{fig:reliability-full-chaosnli}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_chaosnli_deberta.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — ChaosNLI DeBERTa-v3-base (ECE$_\text{true}$).}}
   \label{fig:reliability-full-chaosnli-deberta}
-\end{figure}
+\end{figure*}
 
 \subsection{ISIC 2019}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_isic_enet.pdf}
   \caption{\textbf{Reliability diagrams (summary) — ISIC 2019 EfficientNet-B4.}}
   \label{fig:reliability-isic-enet-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_isic_vit.pdf}
   \caption{\textbf{Reliability diagrams (summary) — ISIC 2019 ViT-S/16.}}
   \label{fig:reliability-isic-vit-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_isic_enet.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — ISIC 2019 EfficientNet-B4 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-isic-enet}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_isic_vit.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — ISIC 2019 ViT-S/16 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-isic-vit}
-\end{figure}
+\end{figure*}
 
 \subsection{DermaMNIST}
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_derm_r18.pdf}
   \caption{\textbf{Reliability diagrams (summary) — DermaMNIST ResNet-18.}}
   \label{fig:reliability-derm-r18-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_derm_vit.pdf}
   \caption{\textbf{Reliability diagrams (summary) — DermaMNIST ViT-S/16.}}
   \label{fig:reliability-derm-vit-sum}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_derm_r18.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — DermaMNIST ResNet-18 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-derm-r18}
-\end{figure}
-\begin{figure}[t]
+\end{figure*}
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_full_derm_vit.pdf}
   \caption{\textbf{Reliability diagrams (all methods) — DermaMNIST ViT-S/16 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-derm-vit}
-\end{figure}
+\end{figure*}
 
 \bigskip
 The diagrams confirm the quantitative results in Tables~\ref{tab:cifar}--\ref{tab:derm}: TS reduces overconfidence relative to \emph{Uncal} but leaves a large residual gap because it targets voted labels.  Dirichlet-Hard performs similarly to TS and sometimes worse, confirming that the problem lies in the target, not model capacity.  All soft methods substantially close the gap, with IR-Soft and Dir.-Soft achieving the most uniform residuals across all benchmarks.
@@ -1128,7 +1128,7 @@ the framework of Dawid and Skene~\cite{dawid1979maximum}, in which each annotato
 characterised by a class-conditional label-flipping distribution; it is widely used
 in crowdsourcing and multi-annotator learning \cite{rodrigues2018deep,uma2021learning}.
 
-\paragraph{Calibration sources.}
+\noindent\textbf{Calibration sources.}
 Diagonal entries (per-condition agreement rates) are set to match the per-condition
 inter-reader agreement reported in Liu et al.~\cite{liu2020deep} (Table~2, nine board-certified
 dermatologists reading 963 clinical images) and corroborated by
@@ -1153,7 +1153,7 @@ The mean diagonal agreement is
 $\bar{C}_{ii} = 75\%$, matching the aggregate inter-reader agreement reported
 by Liu et al.~\cite{liu2020deep} exactly.
 
-\paragraph{Simulation procedure.}
+\noindent\textbf{Simulation procedure.}
 For each test image $x_i$ with consensus label $y_i$, we independently draw $m=9$
 synthetic annotations from the categorical distribution defined by row $y_i$ of
 $C$:
@@ -1179,7 +1179,7 @@ The MEL/NV cluster (orange dashed box) and the AK/BKL/SCC high-confusion
 cluster (purple dotted highlights) are visually prominent.  DF and VL have
 near-perfect diagonal entries and negligible off-diagonal mass.
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.82\linewidth]{figs/isic_confusion.pdf}
   \caption{
@@ -1193,7 +1193,7 @@ near-perfect diagonal entries and negligible off-diagonal mass.
     Mean diagonal agreement $\bar{C}_{ii}=75\%$.
   }
   \label{fig:isic-confusion}
-\end{figure}
+\end{figure*}
 
 \subsection{Full confusion matrix}
 
@@ -1300,36 +1300,36 @@ A natural question is whether making the calibration map \emph{adaptive} (predic
   \end{tabular}}
 \end{table*}
 
-\paragraph{Finding.}
+\noindent\textbf{Finding.}
 ATS fails to improve over TS in all 8 settings and in several cases degrades it (ECE rises from $11.63\%$ to $13.09\%$ on DeBERTa-v3; from $16.59\%$ to $17.53\%$ on ISIC ViT-S/16).  The per-instance temperature learned from logit features adapts to \emph{model uncertainty}, not to \emph{annotator disagreement}; these two quantities are loosely correlated at best (cf.\ Figure~\ref{fig:entropy-validation}).  In contrast, LS-TS, which uses the same global-temperature architecture as TS but simply shifts the calibration target toward a smoothed distribution, reduces ECE by 7--78\% across all 8 settings without any annotator data.  This confirms that the calibration target is the critical design axis: added architectural flexibility without the right supervision signal yields no benefit.
 
 \section{Implementation Details}
 \label{app:impl}
 
-\paragraph{CIFAR-10H models.}
+\noindent\textbf{CIFAR-10H models.}
 \textit{ResNet-50}: ImageNet-1k weights (\texttt{ResNet50\_Weights.IMAGENET1K\_V1}); FC layer replaced with $2048\times 10$ linear; AdamW, lr$=10^{-4}$, weight decay $10^{-4}$, batch 128, cosine annealing, 30 epochs, $224\times224$.
 \textit{ViT-B/16}: ImageNet-21k weights; classification head replaced; AdamW, lr$=5\times10^{-5}$, weight decay $10^{-4}$, batch 64, cosine annealing, 20 epochs, $224\times224$.
 
-\paragraph{ChaosNLI models.}
+\noindent\textbf{ChaosNLI models.}
 \textit{RoBERTa-Large}: \texttt{roberta-large-mnli} from HuggingFace, pre-fine-tuned on MultiNLI \cite{liu2019roberta}; no additional fine-tuning.
 \textit{DeBERTa-v3-base}: \texttt{cross-encoder/nli-deberta-v3-base} from HuggingFace \cite{he2021debertav3}; no additional fine-tuning.
 Both models use the combined ChaosNLI SNLI+MNLI subset ($n=3{,}113$), split 50/50 into calibration and test (stratified, seed 42).
 
-\paragraph{ISIC 2019 models.}
+\noindent\textbf{ISIC 2019 models.}
 \textit{EfficientNet-B4}: ImageNet-1k weights; stratified 70/15/15 split; class-weighted cross-entropy (NV: ${\approx}67\%$ of training images); AdamW, lr$=3\times10^{-4}$, weight decay $10^{-4}$, 2-epoch linear warm-up + cosine decay, 20 epochs, $380\times380$.
 \textit{ViT-S/16}: ImageNet-21k weights; same split and loss weighting; AdamW, lr$=10^{-4}$, weight decay $10^{-4}$, 2-epoch warm-up + cosine decay, 20 epochs, $224\times224$.
 
-\paragraph{DermaMNIST models.}
+\noindent\textbf{DermaMNIST models.}
 \textit{ResNet-18}: ImageNet-1k weights, class-weighted cross-entropy, AdamW, lr$=10^{-4}$, 30 epochs.
 \textit{ViT-S/16}: ImageNet-21k weights, same training protocol, $224\times224$.
 
-\paragraph{Calibration optimizers.}
+\noindent\textbf{Calibration optimizers.}
 TS, SLTS: LBFGS, lr$=0.1$, 500 iterations, tolerance $10^{-9}$ (gradient), $10^{-11}$ (loss).  Platt/VS: Adam, lr$=0.01$/0.05, weight decay $10^{-4}$, 2000 steps.
 
-\paragraph{ECE bins.}
+\noindent\textbf{ECE bins.}
 $B=15$ equal-width bins in $[0,1]$; bins with fewer than 1 example are excluded.
 
-\paragraph{Compute.}
+\noindent\textbf{Compute.}
 CIFAR-10H fine-tuning: ${\approx}20$ min on one NVIDIA A100.  All calibration methods: $<60$ s on CPU after logit caching.
 
 \end{document}
