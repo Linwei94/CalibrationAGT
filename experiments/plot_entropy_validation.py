@@ -204,7 +204,7 @@ def main():
 
     ax.set_xlabel(r"Normalised annotation entropy $H(x)/\log K$", fontsize=9)
     ax.set_ylabel("Pointwise calibration error (%)", fontsize=9)
-    ax.legend(fontsize=7.5, loc="upper left", frameon=True, fancybox=False,
+    ax.legend(fontsize=7.5, loc="lower right", frameon=True, fancybox=False,
               edgecolor="0.7")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.tick_params(labelsize=8)

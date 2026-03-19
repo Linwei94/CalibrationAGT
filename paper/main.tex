@@ -229,7 +229,7 @@ For unambiguous examples ($H(x)=0$), $\pi(\cdot\mid x)$ is one-hot, so true-labe
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_entropy_validation.pdf}
-  \caption{\textbf{Empirical validation of Proposition~\ref{prop:entropy-gap}.}  Test examples are grouped into equal-frequency bins by normalised annotation entropy $H(x)/\log K$.  Each point shows the mean pointwise true-label calibration error $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$ for Temperature Scaling (error bars: $\pm 1$ s.e.).  Across all three dataset--architecture combinations, TS error consistently increases with annotation entropy, confirming the monotonic relationship predicted by Proposition~\ref{prop:entropy-gap}.}
+  \caption{\textbf{Empirical validation of Proposition~\ref{prop:entropy-gap}.}  Test examples are grouped into equal-frequency bins by normalised annotation entropy $H(x)/\log K$.  Each point shows the mean pointwise true-label calibration error $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$ for Temperature Scaling (error bars: $\pm 1$ s.e.).  Across all three dataset--architecture combinations, TS error increases monotonically with annotation entropy, as predicted by Proposition~\ref{prop:entropy-gap}.  ChaosNLI operates in a higher-entropy regime and exhibits uniformly higher error ($19$--$25\%$).}
   \label{fig:entropy-validation}
 \end{figure}
 
