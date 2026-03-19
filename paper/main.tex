@@ -1014,8 +1014,6 @@ Across all benchmarks and architectures, standard deviations are small relative 
 
 Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are shown in Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} in the main text.  Here we provide the four-method summary panels and full panels for all remaining architectures and datasets.  All panels share the same layout: top row = voted-label baselines (Uncal, TS, Platt, Dir.-Hard); middle row = annotation-free (LS-TS) and temperature-based soft methods (SLTS, MCTS, SoftPlatt, VS); bottom row = non-parametric/matrix soft methods (Dir.-Soft, IR-Soft).  Red shading = overconfident; green = underconfident.
 
-\subsection{CIFAR-10H}
-
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_reliability_cifar_vit.pdf}
@@ -1034,8 +1032,6 @@ Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are
   \caption{\textbf{Reliability diagrams (all methods) — CIFAR-10H ViT-B/16 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-cifar-vit}
 \end{figure*}
-
-\subsection{ChaosNLI}
 
 \begin{figure*}[t]
   \centering
@@ -1056,8 +1052,6 @@ Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are
   \caption{\textbf{Reliability diagrams (all methods) — ChaosNLI DeBERTa-v3-base (ECE$_\text{true}$).}}
   \label{fig:reliability-full-chaosnli-deberta}
 \end{figure*}
-
-\subsection{ISIC 2019}
 
 \begin{figure*}[t]
   \centering
@@ -1083,8 +1077,6 @@ Four-method summaries for CIFAR-10H (ResNet-50) and ChaosNLI (RoBERTa-Large) are
   \caption{\textbf{Reliability diagrams (all methods) — ISIC 2019 ViT-S/16 (ECE$_\text{true}$).}}
   \label{fig:reliability-full-isic-vit}
 \end{figure*}
-
-\subsection{DermaMNIST}
 
 \begin{figure*}[t]
   \centering
