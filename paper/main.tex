@@ -210,7 +210,7 @@ We now formalise, under simplifying assumptions, two complementary aspects of th
 
 \begin{proposition}[Direction of TS Bias]
 \label{prop:ts-bias}
-Consider a calibration set containing an ambiguous cluster in which the voted label $y^*$ equals the majority class for every example, but the true annotator probability of $y^*$ is $\pi_{y^*}(x)=q < 1$.  Under the assumption that the model is already reasonably accurate on this cluster ($\operatorname{softmax}(z_i)_{y^*}>q$ for all $i$ in the cluster), the voted-label loss exerts a downward pull on $T$ for these examples, whereas a soft-label loss with target $q$ exerts an upward pull.  Consequently, $T^*_{\text{TS}} < T^*_{\text{soft}}$: TS selects a lower temperature than ambiguity-aware calibration requires.  In a setting where the model is already overconfident ($\operatorname{softmax}(z_i)_{y^*} \gg q$), this manifests as $T^*_{\text{TS}}<1$; more generally, both optima may exceed 1, but the gap $T^*_{\text{soft}} - T^*_{\text{TS}} > 0$ persists, consistent with our experimental findings (e.g., $T_{\text{TS}}=2.03$ vs.\ $T_{\text{SLTS}}=3.18$ on CIFAR-10H ResNet-50).
+Consider a calibration set containing an ambiguous cluster in which the voted label $y^*$ equals the majority class for every example, but the true annotator probability of $y^*$ is $\pi_{y^*}(x)=q < 1$.  Under the assumption that the model is already reasonably accurate on this cluster ($\operatorname{softmax}(z_i)_{y^*}>q$ for all $i$ in the cluster), the voted-label loss exerts a downward pull on $T$ for these examples, whereas a soft-label loss with target $q$ exerts an upward pull.  Consequently, $T^*_{\text{TS}} < T^*_{\text{soft}}$: TS selects a lower temperature than ambiguity-aware calibration requires.  In a setting where the model is already overconfident ($\operatorname{softmax}(z_i)_{y^*} \gg q$), this manifests as $T^*_{\text{TS}}<1$; more generally, both optima may exceed 1, but the gap $T^*_{\text{soft}} - T^*_{\text{TS}} > 0$ persists, consistent with our experimental findings (e.g., $T_{\text{TS}}=2.03$ vs.\ $T_{\text{soft}}=3.18$ on CIFAR-10H ResNet-50).
 \end{proposition}
 
 \begin{proof}[Proof sketch]
@@ -242,28 +242,28 @@ All methods in this paper are \emph{post-hoc}: they operate on cached logits fro
 
 \subsection{Ambiguity-Aware Calibration Methods}
 
-\noindent\textbf{Soft-Label Temperature Scaling (SLTS).}
-SLTS minimises the cross-entropy between the calibrated output and the empirical label distribution:
+\noindent\textbf{Soft-label calibration objective.}
+The natural replacement for the voted-label loss~\eqref{eq:ts-loss} is the cross-entropy against the full annotator distribution:
 \begin{align}
-  \mathcal{L}_{\text{SLTS}}(T)
+  \mathcal{L}_{\text{soft}}(T)
   &= -\frac{1}{n}\sum_{i=1}^n \sum_{k=1}^K
     \pihat_k(x_i)\,\log \operatorname{softmax}(z_i/T)_k \nonumber\\
   &= \frac{1}{n}\sum_{i=1}^n \KL\!\bigl(\pihat(x_i)\,\|\,\operatorname{softmax}(z_i/T)\bigr) + \text{const}.
   \label{eq:slts-loss}
 \end{align}
-SLTS uses the same single-parameter family as TS but with a target that correctly reflects the annotator distribution.
+This retains the same single-parameter family as TS but replaces the one-hot voted label with a target that correctly reflects the annotator distribution.  When $\pihat$ is available in closed form, minimising~\eqref{eq:slts-loss} directly yields the \textbf{Soft-Label Temperature Scaling (SLTS)} baseline reported in our tables.
 
 \begin{proposition}[Correctness of distributional target]
 \label{prop:proper}
-The per-example loss $\ell(q;\pihat) = -\sum_k \pihat_k \log q_k$ is a strictly proper scoring rule over $q\in\Delta^K$: it is uniquely minimised at $q=\pihat(x)$ for each $x$.  Consequently, within the constrained family $\{\operatorname{softmax}(z/T): T>0\}$, $\mathcal{L}_{\text{SLTS}}$ identifies the temperature $T^*$ that minimises $\mathrm{KL}(\pihat\|\operatorname{softmax}(z/T^*))$, targeting the correct distributional objective, unlike $\mathcal{L}_{\text{TS}}$, which targets the one-hot voted label.  Note that $T^*$ need not achieve $\operatorname{softmax}(z/T^*)=\pihat$ exactly within this one-parameter family; the proper scoring rule property guarantees correctness of the \emph{target}, not achievability within the constrained family.
+The per-example loss $\ell(q;\pihat) = -\sum_k \pihat_k \log q_k$ is a strictly proper scoring rule over $q\in\Delta^K$: it is uniquely minimised at $q=\pihat(x)$ for each $x$.  Consequently, within the constrained family $\{\operatorname{softmax}(z/T): T>0\}$, $\mathcal{L}_{\text{soft}}$ identifies the temperature $T^*$ that minimises $\mathrm{KL}(\pihat\|\operatorname{softmax}(z/T^*))$, targeting the correct distributional objective, unlike $\mathcal{L}_{\text{TS}}$, which targets the one-hot voted label.  Note that $T^*$ need not achieve $\operatorname{softmax}(z/T^*)=\pihat$ exactly within this one-parameter family; the proper scoring rule property guarantees correctness of the \emph{target}, not achievability within the constrained family.
 \end{proposition}
 
 \noindent\textbf{Monte Carlo Temperature Scaling (MCTS).}
-When individual annotation records are available rather than pre-aggregated label distributions, \textbf{MCTS} draws $S$ samples $a_{is}\sim\pihat(x_i)$ per example and minimises
+In practice, pre-aggregated label distributions $\pihat(x_i)$ may not be available; instead, individual annotation records $\{a_{i1},\ldots,a_{iS}\}$ are stored per example.  \textbf{MCTS} draws $S$ such samples $a_{is}\sim\pihat(x_i)$ and minimises
 $\mathcal{L}_{\text{MCTS}}(T) = -\frac{1}{nS}\sum_{i,s} \log\operatorname{softmax}(z_i/T)_{a_{is}}$.
-Formally, $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, so MCTS converges to SLTS in expectation as $S\to\infty$.
-Table~\ref{tab:mcts} shows that \emph{even $S=1$} achieves ECE$_\text{true}$ of $1.53\%$, matching SLTS within rounding error on CIFAR-10H.
-This one-annotation efficiency is not restricted to a single benchmark: across all eight dataset--architecture settings reported in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}, MCTS $S{=}1$ matches SLTS within 0.6~pp ECE, indicating that any dataset annotated once per example by a randomly selected annotator is sufficient for effective ambiguity-aware calibration (see Appendix~\ref{app:mcts-convergence} for the full convergence analysis).
+Since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, MCTS converges to the deterministic objective~\eqref{eq:slts-loss} as $S\to\infty$.
+The key practical finding is that \emph{even $S=1$} suffices: on CIFAR-10H, a single annotation per calibration example achieves ECE$_\text{true}$ of $1.53\%$, matching the $S\!\to\!\infty$ limit within rounding error (Table~\ref{tab:mcts}).
+This efficiency generalises across all eight dataset--architecture settings in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}, where MCTS $S{=}1$ matches SLTS within 0.6~pp ECE (see Appendix~\ref{app:mcts-convergence} for the full convergence analysis).
 
 \begin{table}[t]
   \centering
@@ -290,7 +290,7 @@ This one-annotation efficiency is not restricted to a single benchmark: across a
 \end{table}
 
 \noindent\textbf{Vector Scaling (VS).}
-VS extends SLTS by replacing the global temperature with a per-class temperature vector $\mathbf{T}=(T_1,\ldots,T_K)$, so that the calibrated logit for class $k$ becomes $z_k/T_k$.  This accommodates datasets where some classes are systematically more ambiguous than others, at the cost of $K$ parameters rather than one.  The loss remains the KL divergence against $\pihat$, as in SLTS.
+VS extends the soft-label objective~\eqref{eq:slts-loss} by replacing the global temperature with a per-class temperature vector $\mathbf{T}=(T_1,\ldots,T_K)$, so that the calibrated logit for class $k$ becomes $z_k/T_k$.  This accommodates datasets where some classes are systematically more ambiguous than others, at the cost of $K$ parameters rather than one.  The loss remains the KL divergence against $\pihat$ (Eq.~\ref{eq:slts-loss}).
 
 \noindent\textbf{Distributional Isotonic Regression (IR-Soft).}
 IR-Soft fits a monotone step function from the model's predicted confidence $\hat{p}_{\hat{c}}(x)$ to the mean annotator probability for the top class, $\pihat_{\hat{c}}(x)$, using the Pool Adjacent Violators Algorithm (PAVA)~\cite{zadrozny2002transforming}.  As a non-parametric method, it makes no assumptions about the functional form of the calibration map and is capable of correcting arbitrary monotone distortions.
@@ -316,7 +316,7 @@ Define the pseudo-target distribution
   = (1-\bar\varepsilon)\,e_{y^*_i} + \tfrac{\bar\varepsilon}{K}\,\mathbf{1},
   \label{eq:lsts}
 \end{equation}
-and minimise $\mathcal{L}_{\mathrm{SLTS}}$ (Eq.~\ref{eq:slts-loss}) with these targets.
+and minimise $\mathcal{L}_{\mathrm{soft}}$ (Eq.~\ref{eq:slts-loss}) with these targets.
 The global smoothing weight $\bar\varepsilon$ is a data-driven estimate of average annotator disagreement: if the model is 80\% confident on the voted class, the remaining 20\% is spread uniformly across all $K$ classes.  The result is $T^*_{\mathrm{LS}} > T^*_{\mathrm{TS}}$ whenever $\bar\varepsilon > 0$, moving the calibrator in the correct direction even without annotator data.
 
 \noindent\textbf{Theoretical interpretation.}
@@ -433,7 +433,7 @@ CIFAR-10H \cite{peterson2019human} provides ${\approx}51$ human annotations per 
   \caption{
     \textbf{Reliability diagrams for four representative methods — CIFAR-10H ResNet-50 (ECE$_\text{true}$).}
     Red shading indicates overconfidence; green indicates underconfidence.
-    Uncal and TS remain overconfident; SLTS substantially corrects this with a single temperature parameter; Dirichlet-Soft reduces the residual gap further.
+    Uncal and TS remain overconfident; soft-label temperature methods (MCTS/SLTS) substantially correct this; Dirichlet-Soft reduces the residual gap further.
     Reliability diagrams for all remaining methods are provided in Appendix~\ref{app:reliability}.
   }
   \label{fig:reliability-main}
@@ -610,7 +610,7 @@ Figure~\ref{fig:isic-confusion} shows the clinically calibrated $8\times8$ confu
 \label{sec:dermamnist}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Table~\ref{tab:isic-main} (lower half) reports results on \textbf{DermaMNIST}~\cite{yang2023medmnist} (7-class, derived from HAM10000~\cite{tschandl2018ham10000}; $m=5$ synthetic annotators; overall agreement ${\approx}64.7\%$) with ResNet-18 and ViT-S/16.  TS leaves ECE $=23.1\%$ on ResNet-18; ambiguity-aware methods substantially close this gap: SLTS achieves $4.6\%$, IR-Soft $2.2\%$, and Dirichlet-Soft $3.6\%$, with Dirichlet-Soft also achieving the best cwECE ($1.2\%$), Brier ($0.610$), and NLL ($1.305$).  ViT-S/16 exhibits the same hierarchy (Dirichlet-Soft: $3.3\%$/$0.601$/$1.286$).  MCTS $S{=}1$ again closely approximates SLTS ($5.07\%$ vs.\ $4.61\%$ on ResNet-18; $3.28\%$ vs.\ $3.58\%$ on ViT-S/16), with the latter setting being another instance where the stochastic objective slightly outperforms the deterministic one.  Both backbones show $T_{\text{SLTS}}>T_{\text{TS}}>1$, consistent with Proposition~\ref{prop:ts-bias}.
+Table~\ref{tab:isic-main} (lower half) reports results on \textbf{DermaMNIST}~\cite{yang2023medmnist} (7-class, derived from HAM10000~\cite{tschandl2018ham10000}; $m=5$ synthetic annotators; overall agreement ${\approx}64.7\%$) with ResNet-18 and ViT-S/16.  TS leaves ECE $=23.1\%$ on ResNet-18; ambiguity-aware methods substantially close this gap: SLTS achieves $4.6\%$, IR-Soft $2.2\%$, and Dirichlet-Soft $3.6\%$, with Dirichlet-Soft also achieving the best cwECE ($1.2\%$), Brier ($0.610$), and NLL ($1.305$).  ViT-S/16 exhibits the same hierarchy (Dirichlet-Soft: $3.3\%$/$0.601$/$1.286$).  MCTS $S{=}1$ again closely approximates SLTS ($5.07\%$ vs.\ $4.61\%$ on ResNet-18; $3.28\%$ vs.\ $3.58\%$ on ViT-S/16), with the latter setting being another instance where the stochastic objective slightly outperforms the deterministic one.  Both backbones show $T_{\text{soft}}>T_{\text{TS}}>1$, consistent with Proposition~\ref{prop:ts-bias}.
 
 DermaMNIST is the most ambiguous benchmark in our study, with mean annotator agreement of $64.7\%$ compared to $75\%$ for ISIC~2019, ${\approx}80\%$ for CIFAR-10H, and ${\approx}67\%$ for ChaosNLI.  Correspondingly, TS ECE$_\text{true}$ ($23.1\%$) is the highest across all benchmarks, reflecting the widest gap between the voted-label target and the true annotator distribution.  The Dirichlet-Hard calibrator, despite being the most expressive voted-label method (full $K\!\times\!K$ affine), worsens ECE relative to TS on both backbones ($24.6\%$ vs.\ $23.1\%$ on ResNet-18; $24.8\%$ vs.\ $24.4\%$ on ViT-S/16), again confirming that expressive architecture cannot compensate for a miscalibrated target.  LS-TS reduces ECE by $78\%$ relative to TS on ResNet-18 ($23.1\%\to 5.1\%$) — the largest relative improvement of the annotation-free method across all settings — because the high level of ambiguity means model confidence (complement 35.3\%) correlates well with the fraction of annotators choosing the minority class.
 
@@ -628,7 +628,7 @@ Dirichlet-Soft improves ECE by 71--84\% relative to TS on the two natural-annota
 \textbf{(3) A single annotation per example suffices.}
 MCTS $S{=}1$ matches SLTS within 0.6~pp ECE in all 8 settings.  The aggregated annotation distribution provides no measurable additional benefit once individual annotator labels are available: any dataset annotated once per example by a randomly selected annotator is immediately amenable to the same calibration quality as full multi-annotator annotation.
 \textbf{(4) LS-TS is effective but dataset-dependent.}
-LS-TS substantially reduces ECE without any annotator data in all settings except ISIC ViT-S/16 (where $T_\text{LS} < T_\text{SLTS}$, indicating model confidence under-estimates annotation ambiguity for this architecture–dataset pair).
+LS-TS substantially reduces ECE without any annotator data in all settings except ISIC ViT-S/16 (where $T_\text{LS} < T_\text{soft}$, indicating model confidence under-estimates annotation ambiguity for this architecture–dataset pair).
 This divergence highlights the assumption underlying LS-TS: that model uncertainty is a reliable proxy for annotation disagreement — an assumption that holds broadly but can fail when the pre-softmax logit magnitude is not well correlated with the fraction of annotators that choose the minority class.
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -636,7 +636,7 @@ This divergence highlights the assumption underlying LS-TS: that model uncertain
 \label{sec:reliability}
 % ─────────────────────────────────────────────────────────────────────────────
 
-Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} present reliability diagrams for the natural-annotation benchmarks (CIFAR-10H and ChaosNLI); Figures~\ref{fig:reliability-isic-main} and~\ref{fig:reliability-derm-main} extend the comparison to the medical imaging benchmarks.  The visual pattern is consistent across all four datasets: Uncalibrated and TS outputs are systematically overconfident (red-shaded residuals), with TS reducing but not eliminating the gap.  SLTS substantially corrects the overconfidence with a single temperature parameter, and Dirichlet-Soft closes most of the remaining residual.  These diagrams provide a qualitative complement to the quantitative ECE metrics reported in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}.  Complete panels covering all thirteen methods across all eight architecture configurations are provided in Appendix~\ref{app:reliability}.
+Figures~\ref{fig:reliability-main} and~\ref{fig:reliability-chaosnli-main} present reliability diagrams for the natural-annotation benchmarks (CIFAR-10H and ChaosNLI); Figures~\ref{fig:reliability-isic-main} and~\ref{fig:reliability-derm-main} extend the comparison to the medical imaging benchmarks.  The visual pattern is consistent across all four datasets: Uncalibrated and TS outputs are systematically overconfident (red-shaded residuals), with TS reducing but not eliminating the gap.  Soft-label temperature methods (MCTS/SLTS) substantially correct the overconfidence, and Dirichlet-Soft closes most of the remaining residual.  These diagrams provide a qualitative complement to the quantitative ECE metrics reported in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}.  Complete panels covering all thirteen methods across all eight architecture configurations are provided in Appendix~\ref{app:reliability}.
 
 \begin{figure*}[t]
   \centering
@@ -712,7 +712,7 @@ Standard deviations of ECE$_\text{true}$ over five random seeds are uniformly $2
 Ambiguity-aware methods stabilise below 2\% ECE on CIFAR-10H using as few as 5--10\% of the calibration data (${\approx}250$ examples), while TS remains flat regardless of sample size.  Full calibration-set-size curves for all benchmarks are given in Appendix~\ref{app:calset-size}.
 
 \noindent\textbf{Annotation count.}
-Ambiguity-aware calibration is robust once $m\geq 2$ annotations per image: increasing from 2 to 51 annotations reduces SLTS ECE$_\text{true}$ by less than 0.3~pp.  TS ECE$_\text{true}$, by contrast, \emph{increases} with $m$, because the annotator distribution diverges further from the one-hot voted label as the underlying consensus strengthens.  Full annotation-count results are reported in Appendix~\ref{app:annot-count}.
+Ambiguity-aware calibration is robust once $m\geq 2$ annotations per image: increasing from 2 to 51 annotations reduces soft-label ECE$_\text{true}$ (MCTS/SLTS) by less than 0.3~pp.  TS ECE$_\text{true}$, by contrast, \emph{increases} with $m$, because the annotator distribution diverges further from the one-hot voted label as the underlying consensus strengthens.  Full annotation-count results are reported in Appendix~\ref{app:annot-count}.
 
 \begin{table*}[t]
   \centering
@@ -880,10 +880,10 @@ When individual annotation records are available rather than pre-aggregated labe
 \[
   \mathcal{L}_{\text{MCTS}}(T) = -\frac{1}{nS}\sum_{i=1}^n\sum_{s=1}^S \log\operatorname{softmax}(z_i/T)_{a_{is}}.
 \]
-MCTS is a strictly more general formulation than SLTS: it applies even when only raw annotation samples are stored rather than pre-computed frequency vectors.
+MCTS subsumes the deterministic soft-label objective (SLTS, Eq.~\ref{eq:slts-loss} with $S\!\to\!\infty$) as a special case, but applies even when only raw annotation samples are stored rather than pre-computed frequency vectors.
 
 \noindent\textbf{A single annotation suffices.}
-The key practical implication of MCTS is that \emph{even $S=1$} (a single randomly drawn annotation per calibration example) already achieves ECE$_\text{true}$ of 1.53\%, matching SLTS to within rounding error and reducing TS's 4.29\% by $64\%$ on CIFAR-10H ResNet-50.  This one-annotation efficiency generalises across all benchmarks: across the 8 settings in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}, MCTS $S{=}1$ matches SLTS within 0.6~pp ECE in every case.  On the natural-annotation benchmarks (CIFAR-10H, ChaosNLI), MCTS $S{=}1$ occasionally \emph{outperforms} SLTS slightly (e.g., 2.82\% vs.\ 3.22\% ECE on ChaosNLI RoBERTa-L), consistent with the stochastic single-annotation objective providing mild implicit regularisation.  This means that any dataset where each example has been annotated even once by a randomly selected annotator is immediately amenable to strong ambiguity-aware calibration — the aggregated annotation distribution provides no measurable additional benefit.  Formally, since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to SLTS in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} (main text) confirms the fast per-seed convergence on CIFAR-10H ResNet-50: the ECE gap between $S=1$ and $S\to\infty$ is only $0.02$ pp; in practice $S=20$--$50$ is sufficient to reduce variance to negligible levels.
+The key practical implication is that \emph{even $S=1$} (a single randomly drawn annotation per calibration example) already achieves ECE$_\text{true}$ of 1.53\%, matching the deterministic limit ($S\!\to\!\infty$) to within rounding error and reducing TS's 4.29\% by $64\%$ on CIFAR-10H ResNet-50.  This one-annotation efficiency generalises across all benchmarks: across the 8 settings in Tables~\ref{tab:cifar} and~\ref{tab:isic-main}, MCTS $S{=}1$ matches SLTS within 0.6~pp ECE in every case.  On the natural-annotation benchmarks (CIFAR-10H, ChaosNLI), MCTS $S{=}1$ occasionally \emph{outperforms} the deterministic limit slightly (e.g., 2.82\% vs.\ 3.22\% ECE on ChaosNLI RoBERTa-L), consistent with the stochastic single-annotation objective providing mild implicit regularisation.  This means that any dataset where each example has been annotated even once by a randomly selected annotator is immediately amenable to strong ambiguity-aware calibration — pre-aggregating annotations into a distribution provides no measurable additional benefit.  Formally, since $\bE_{\hat{y}\sim\pihat}[\mathrm{CE}(\operatorname{softmax}(z/T),\hat{y})] = \KL(\pihat\|\operatorname{softmax}(z/T)) + H(\pihat)$, the MCTS objective converges to Eq.~\eqref{eq:slts-loss} in expectation as $S\to\infty$, with variance $\propto 1/S$.  Table~\ref{tab:mcts} (main text) confirms the fast per-seed convergence on CIFAR-10H ResNet-50: the ECE gap between $S=1$ and $S\to\infty$ is only $0.02$ pp; in practice $S=20$--$50$ is sufficient to reduce variance to negligible levels.
 
 \section{Ablation: Calibration Set Size}
 \label{app:calset-size}
@@ -943,7 +943,7 @@ We fix the annotation count at the full observed value and vary the fraction of 
 \end{figure*}
 
 \noindent\textbf{Key findings.}
-Across all four benchmarks and eight architectures, TS's ECE does not decrease with more calibration data, confirming that the degradation is a target bias rather than a variance artifact.  In contrast, SLTS achieves stable low ECE from as few as 5--10\% of the calibration set, and IR-Soft and Dirichlet-Soft converge even faster on most benchmarks.  This suggests that the annotation distribution (not the number of calibration examples) is the limiting factor for ambiguity-aware methods.
+Across all four benchmarks and eight architectures, TS's ECE does not decrease with more calibration data, confirming that the degradation is a target bias rather than a variance artifact.  In contrast, soft-label methods (MCTS/SLTS) achieve stable low ECE from as few as 5--10\% of the calibration set, and IR-Soft and Dirichlet-Soft converge even faster on most benchmarks.  This suggests that the annotation distribution (not the number of calibration examples) is the limiting factor for ambiguity-aware methods.
 
 \section{Ablation: Number of Annotations per Image}
 \label{app:annot-count}
