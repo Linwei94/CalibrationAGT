@@ -1,0 +1,420 @@
+{
+  "dataset": "ISIC2019",
+  "n_classes": 8,
+  "class_names": [
+    "MEL",
+    "NV",
+    "BCC",
+    "AK",
+    "BKL",
+    "DF",
+    "VASC",
+    "SCC"
+  ],
+  "n_annotators": 9,
+  "confusion_diagonal": [
+    0.73,
+    0.76,
+    0.81,
+    0.65,
+    0.62,
+    0.87,
+    0.91,
+    0.67
+  ],
+  "overall_agreement": 0.7525000000000001,
+  "main_results": [
+    {
+      "name": "Uncalibrated",
+      "ece_hard": 0.047422646133678595,
+      "ece_soft": 0.21274285647503882,
+      "ece_sampled": 0.2127907810426928,
+      "adaptive_ece_true": 0.21166788344050677,
+      "classwise_ece_true": 0.06211126432896728,
+      "brier_hard": 0.3711362293165271,
+      "brier_soft": 0.2805172721174641,
+      "brier_sampled": 0.6500875605791744,
+      "nll_hard": 0.7350119847492791,
+      "nll_soft": 1.802977965776951,
+      "nll_sampled": 1.802977965776951,
+      "temperature": null
+    },
+    {
+      "name": "TS",
+      "ece_hard": 0.026031070356468268,
+      "ece_soft": 0.17014574691127238,
+      "ece_sampled": 0.1704464483182598,
+      "adaptive_ece_true": 0.16949447170410256,
+      "classwise_ece_true": 0.05489998747399599,
+      "brier_hard": 0.3673402417595548,
+      "brier_soft": 0.26002387389205134,
+      "brier_sampled": 0.6295941623537616,
+      "nll_hard": 0.7101446435957015,
+      "nll_soft": 1.5782562784664969,
+      "nll_sampled": 1.5782562784664969,
+      "temperature": 1.2302173376083374
+    },
+    {
+      "name": "Platt (PS)",
+      "ece_hard": 0.017563721661635497,
+      "ece_soft": 0.1815269696511509,
+      "ece_sampled": 0.1816834741791572,
+      "adaptive_ece_true": 0.18144986394977297,
+      "classwise_ece_true": 0.04943435911089694,
+      "brier_hard": 0.3223607794018836,
+      "brier_soft": 0.239944856422983,
+      "brier_sampled": 0.6095151448846932,
+      "nll_hard": 0.6329948912951057,
+      "nll_soft": 1.5948505312397527,
+      "nll_sampled": 1.5948505312397527,
+      "temperature": null
+    },
+    {
+      "name": "Dirichlet-Hard",
+      "ece_hard": 0.016400514973290196,
+      "ece_soft": 0.18488406100643065,
+      "ece_sampled": 0.18505564751878803,
+      "adaptive_ece_true": 0.1848840610064307,
+      "classwise_ece_true": 0.050234195640073045,
+      "brier_hard": 0.3239790016378182,
+      "brier_soft": 0.24293603675101536,
+      "brier_sampled": 0.6125063252127256,
+      "nll_hard": 0.6385319639857269,
+      "nll_soft": 1.61734058580736,
+      "nll_sampled": 1.61734058580736,
+      "temperature": null
+    },
+    {
+      "name": "LabelSmooth-TS",
+      "ece_hard": 0.3207323016800984,
+      "ece_soft": 0.15465105639219096,
+      "ece_sampled": 0.1548887408960481,
+      "adaptive_ece_true": 0.15465105639219096,
+      "classwise_ece_true": 0.04518043364422286,
+      "brier_hard": 0.5028326719041725,
+      "brier_soft": 0.24937880850788302,
+      "brier_sampled": 0.6189490969695933,
+      "nll_hard": 1.0348440442740052,
+      "nll_soft": 1.3030097634332023,
+      "nll_sampled": 1.3030097634332023,
+      "temperature": 3.982485294342041
+    },
+    {
+      "name": "PSLTS (ours)",
+      "ece_hard": 0.25072161760279327,
+      "ece_soft": 0.09352663670665534,
+      "ece_sampled": 0.09535962013388392,
+      "adaptive_ece_true": 0.09257859139417636,
+      "classwise_ece_true": 0.03599305789448811,
+      "brier_hard": 0.4517304512032668,
+      "brier_soft": 0.23025855804963638,
+      "brier_sampled": 0.5998288465113467,
+      "nll_hard": 0.9164676723068422,
+      "nll_soft": 1.2568976674474934,
+      "nll_sampled": 1.2568976674474934,
+      "temperature": 3.1371090412139893
+    },
+    {
+      "name": "MCTS (ours)",
+      "ece_hard": 0.2036290156632442,
+      "ece_soft": 0.07015493717653042,
+      "ece_sampled": 0.07095244123675991,
+      "adaptive_ece_true": 0.06793779210316055,
+      "classwise_ece_true": 0.033394312927074066,
+      "brier_hard": 0.4239960467868869,
+      "brier_soft": 0.22435382721390468,
+      "brier_sampled": 0.593924115675615,
+      "nll_hard": 0.8500838636736069,
+      "nll_soft": 1.2481515160864354,
+      "nll_sampled": 1.2481515160864354,
+      "temperature": 2.682875633239746
+    },
+    {
+      "name": "MCTS S=1 (ours)",
+      "ece_hard": 0.21379449655811197,
+      "ece_soft": 0.07375928616883316,
+      "ece_sampled": 0.07469741767949498,
+      "adaptive_ece_true": 0.07148698396446895,
+      "classwise_ece_true": 0.03354580759928664,
+      "brier_hard": 0.4294048420869825,
+      "brier_soft": 0.22515435762341732,
+      "brier_sampled": 0.5947246460851275,
+      "nll_hard": 0.8632117065652163,
+      "nll_soft": 1.2483507338689988,
+      "nll_sampled": 1.2483507338689988,
+      "temperature": 2.7729363441467285
+    },
+    {
+      "name": "SLTS (ours)",
+      "ece_hard": 0.20283538778680518,
+      "ece_soft": 0.07019673341843989,
+      "ece_sampled": 0.07095993710793674,
+      "adaptive_ece_true": 0.06771638726636972,
+      "classwise_ece_true": 0.0334602410743014,
+      "brier_hard": 0.4235666369721965,
+      "brier_soft": 0.22429899415986554,
+      "brier_sampled": 0.5938692826215759,
+      "nll_hard": 0.8490372417706874,
+      "nll_soft": 1.2481763075538794,
+      "nll_sampled": 1.2481763075538794,
+      "temperature": 2.6756739616394043
+    },
+    {
+      "name": "SoftPlatt (ours)",
+      "ece_hard": 0.21320854310727472,
+      "ece_soft": 0.0780934839616397,
+      "ece_sampled": 0.0782295066868009,
+      "adaptive_ece_true": 0.0770687344390801,
+      "classwise_ece_true": 0.018980310524417003,
+      "brier_hard": 0.3943247427954718,
+      "brier_soft": 0.20208030511417233,
+      "brier_sampled": 0.5716505935758825,
+      "nll_hard": 0.8006778848095181,
+      "nll_soft": 1.2013494530079083,
+      "nll_sampled": 1.2013494530079083,
+      "temperature": null
+    },
+    {
+      "name": "VS (ours)",
+      "ece_hard": 0.20631566089828227,
+      "ece_soft": 0.07668178309504929,
+      "ece_sampled": 0.07736154958166115,
+      "adaptive_ece_true": 0.07586522358768985,
+      "classwise_ece_true": 0.0214114236950732,
+      "brier_hard": 0.39185172706546956,
+      "brier_soft": 0.2041299182096749,
+      "brier_sampled": 0.5737002066713851,
+      "nll_hard": 0.8005013255334655,
+      "nll_soft": 1.2113888372769102,
+      "nll_sampled": 1.2113888372769102,
+      "temperature": null
+    },
+    {
+      "name": "Dirichlet-Soft (ours)",
+      "ece_hard": 0.20536251434049438,
+      "ece_soft": 0.0628568882591732,
+      "ece_sampled": 0.06316662092652912,
+      "adaptive_ece_true": 0.06284837249285681,
+      "classwise_ece_true": 0.016351116232418847,
+      "brier_hard": 0.39698912737136755,
+      "brier_soft": 0.19860244736835633,
+      "brier_sampled": 0.5681727358300667,
+      "nll_hard": 0.8025466380117315,
+      "nll_soft": 1.183755135642153,
+      "nll_sampled": 1.183755135642153,
+      "temperature": null
+    },
+    {
+      "name": "HB-Hard",
+      "ece_hard": 0.026740789735342337,
+      "ece_soft": 0.18367411577200676,
+      "ece_sampled": 0.18364104979313337,
+      "adaptive_ece_true": 0.18158450463023212,
+      "classwise_ece_true": 0.06595666278961143,
+      "brier_hard": 0.4050698358477231,
+      "brier_soft": 0.2994414318752904,
+      "brier_sampled": 0.6690117203370008,
+      "nll_hard": 0.9921870723616524,
+      "nll_soft": 1.637960312195357,
+      "nll_sampled": 1.637960312195357,
+      "temperature": null
+    },
+    {
+      "name": "HB-Soft (ours)",
+      "ece_hard": 0.15831162562266038,
+      "ece_soft": 0.014833004462156858,
+      "ece_sampled": 0.01981942594491015,
+      "adaptive_ece_true": 0.025727720628909604,
+      "classwise_ece_true": 0.05688344163366753,
+      "brier_hard": 0.43511171330629606,
+      "brier_soft": 0.2573833208739951,
+      "brier_sampled": 0.6269536093357053,
+      "nll_hard": 1.0639197163556346,
+      "nll_soft": 1.479580574763167,
+      "nll_sampled": 1.479580574763167,
+      "temperature": null
+    },
+    {
+      "name": "IR-Soft (ours)",
+      "ece_hard": 0.15679764165076868,
+      "ece_soft": 0.014810347892304716,
+      "ece_sampled": 0.020466546101615354,
+      "adaptive_ece_true": 0.021285685291562873,
+      "classwise_ece_true": 0.05649013839648826,
+      "brier_hard": 0.43430848955630896,
+      "brier_soft": 0.2570265573414029,
+      "brier_sampled": 0.6265968458031131,
+      "nll_hard": 1.0620555569772987,
+      "nll_soft": 1.4791599520597718,
+      "nll_sampled": 1.4791599520597718,
+      "temperature": null
+    }
+  ],
+  "quant_results": {
+    "TS": [
+      {
+        "quantile": 1,
+        "entropy_lo": 1.9341714341258864e-10,
+        "entropy_hi": 0.3488321006298065,
+        "ece_soft": 0.05943320547230541,
+        "n": 320
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.3488321006298065,
+        "entropy_hi": 0.6837388873100281,
+        "ece_soft": 0.10968042373843748,
+        "n": 1438
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6837388873100281,
+        "entropy_hi": 0.8486855626106262,
+        "ece_soft": 0.17353460339401688,
+        "n": 1041
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.8486855626106262,
+        "entropy_hi": 1.6769877672195435,
+        "ece_soft": 0.3156263504323055,
+        "n": 997
+      }
+    ],
+    "Platt (PS)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 1.9341714341258864e-10,
+        "entropy_hi": 0.3488321006298065,
+        "ece_soft": 0.05328197786584498,
+        "n": 320
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.3488321006298065,
+        "entropy_hi": 0.6837388873100281,
+        "ece_soft": 0.1097727518927653,
+        "n": 1438
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6837388873100281,
+        "entropy_hi": 0.8486855626106262,
+        "ece_soft": 0.2072573644426668,
+        "n": 1041
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.8486855626106262,
+        "entropy_hi": 1.6769877672195435,
+        "ece_soft": 0.3356431207078749,
+        "n": 997
+      }
+    ],
+    "SLTS (ours)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 1.9341714341258864e-10,
+        "entropy_hi": 0.3488321006298065,
+        "ece_soft": 0.20566190551035105,
+        "n": 320
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.3488321006298065,
+        "entropy_hi": 0.6837388873100281,
+        "ece_soft": 0.10789616696629802,
+        "n": 1438
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6837388873100281,
+        "entropy_hi": 0.8486855626106262,
+        "ece_soft": 0.0779468356689848,
+        "n": 1041
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.8486855626106262,
+        "entropy_hi": 1.6769877672195435,
+        "ece_soft": 0.10371092023886555,
+        "n": 997
+      }
+    ],
+    "MCTS (ours)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 1.9341714341258864e-10,
+        "entropy_hi": 0.3488321006298065,
+        "ece_soft": 0.2064730321057141,
+        "n": 320
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.3488321006298065,
+        "entropy_hi": 0.6837388873100281,
+        "ece_soft": 0.1085512824356556,
+        "n": 1438
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6837388873100281,
+        "entropy_hi": 0.8486855626106262,
+        "ece_soft": 0.07691626663710727,
+        "n": 1041
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.8486855626106262,
+        "entropy_hi": 1.6769877672195435,
+        "ece_soft": 0.1028968149211366,
+        "n": 997
+      }
+    ]
+  },
+  "per_class_ece": {
+    "MEL": {
+      "ece_ts": 0.21739537440306317,
+      "ece_slts": 0.02088267593520932
+    },
+    "NV": {
+      "ece_ts": 0.13299353272185802,
+      "ece_slts": 0.09417678696281366
+    },
+    "BCC": {
+      "ece_ts": 0.11612684219836233,
+      "ece_slts": 0.14290436806089907
+    },
+    "AK": {
+      "ece_ts": 0.23469995380594177,
+      "ece_slts": 0.09467512718760049
+    },
+    "BKL": {
+      "ece_ts": 0.2994488978583091,
+      "ece_slts": 0.0793599515167508
+    },
+    "DF": {
+      "ece_ts": 0.2346323307071413,
+      "ece_slts": 0.11878078792776378
+    },
+    "VASC": {
+      "ece_ts": 0.12711220979690555,
+      "ece_slts": 0.0944189993110863
+    },
+    "SCC": {
+      "ece_ts": 0.29842134636450324,
+      "ece_slts": 0.06836821875990702
+    }
+  },
+  "ts_temperature": 1.2302173376083374,
+  "slts_temperature": 2.6756739616394043,
+  "mcts_temperature": 2.682875633239746,
+  "pslts_temperature": 3.1371090412139893,
+  "ls_ts_temperature": 3.982485294342041,
+  "val_accuracy": 0.7552687038988409,
+  "test_accuracy": 0.7397260273972602,
+  "n_val": 3796,
+  "n_test": 3796,
+  "n_bins": 15,
+  "seed": 42
+}

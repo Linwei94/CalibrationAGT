@@ -1,0 +1,425 @@
+{
+  "dataset": "ChaosNLI-combined",
+  "arch": "deberta_v3",
+  "model_name": "cross-encoder/nli-deberta-v3-base",
+  "main_results": [
+    {
+      "name": "Uncalibrated",
+      "ece_hard": 0.2761525044513193,
+      "ece_soft": 0.3594280346682536,
+      "ece_sampled": 0.3597367848470261,
+      "adaptive_ece_true": 0.3592438053629225,
+      "classwise_ece_true": 0.2402481038872579,
+      "brier_hard": 0.5776427931810977,
+      "brier_soft": 0.3460912942729062,
+      "brier_sampled": 0.7433589889648932,
+      "nll_hard": 1.5201198945184913,
+      "nll_soft": 2.148049543027775,
+      "nll_sampled": 2.148049543027775,
+      "temperature": null
+    },
+    {
+      "name": "TS",
+      "ece_hard": 0.03312356175714835,
+      "ece_soft": 0.1162797392429108,
+      "ece_sampled": 0.11633529568836329,
+      "adaptive_ece_true": 0.11569599458898729,
+      "classwise_ece_true": 0.08476185473529502,
+      "brier_hard": 0.442779894770097,
+      "brier_soft": 0.15199667833041292,
+      "brier_sampled": 0.5492643730223999,
+      "nll_hard": 0.7348841079342237,
+      "nll_soft": 0.8997024976024384,
+      "nll_sampled": 0.8997024976024384,
+      "temperature": 3.8098275661468506
+    },
+    {
+      "name": "Platt (PS)",
+      "ece_hard": 0.041218574087667235,
+      "ece_soft": 0.12363926970861093,
+      "ece_sampled": 0.12429021904502227,
+      "adaptive_ece_true": 0.12363926970861093,
+      "classwise_ece_true": 0.0842797953133106,
+      "brier_hard": 0.41473332010167097,
+      "brier_soft": 0.14182185108031814,
+      "brier_sampled": 0.5390895457723052,
+      "nll_hard": 0.6750006012436454,
+      "nll_soft": 0.8956635460518758,
+      "nll_sampled": 0.8956635460518758,
+      "temperature": null
+    },
+    {
+      "name": "Dirichlet-Hard",
+      "ece_hard": 0.0389819379295381,
+      "ece_soft": 0.12634814313242623,
+      "ece_sampled": 0.12692112827538374,
+      "adaptive_ece_true": 0.12630284149690207,
+      "classwise_ece_true": 0.08844180450170795,
+      "brier_hard": 0.4065034750311693,
+      "brier_soft": 0.1420481350554134,
+      "brier_sampled": 0.5393158297474003,
+      "nll_hard": 0.6626199688275267,
+      "nll_soft": 0.8948844105857543,
+      "nll_sampled": 0.8948844105857543,
+      "temperature": null
+    },
+    {
+      "name": "LabelSmooth-TS",
+      "ece_hard": 0.09621608852574515,
+      "ece_soft": 0.016861039434554234,
+      "ece_sampled": 0.02645708553248977,
+      "adaptive_ece_true": 0.029922016223386538,
+      "classwise_ece_true": 0.06323384865560157,
+      "brier_hard": 0.45712808399508326,
+      "brier_soft": 0.13148732104197197,
+      "brier_sampled": 0.528755015733959,
+      "nll_hard": 0.7787559992911431,
+      "nll_soft": 0.8808935722814979,
+      "nll_sampled": 0.8808935722814979,
+      "temperature": 6.147881031036377
+    },
+    {
+      "name": "PSLTS (ours)",
+      "ece_hard": 0.05489621910056626,
+      "ece_soft": 0.13880489251708553,
+      "ece_sampled": 0.13911752813851597,
+      "adaptive_ece_true": 0.13846469060419156,
+      "classwise_ece_true": 0.09603043476502852,
+      "brier_hard": 0.4460079851651187,
+      "brier_soft": 0.161382998657062,
+      "brier_sampled": 0.558650693349049,
+      "nll_hard": 0.7366036726418728,
+      "nll_soft": 0.9154463427116022,
+      "nll_sampled": 0.9154463427116022,
+      "temperature": 3.511072874069214
+    },
+    {
+      "name": "MCTS (ours)",
+      "ece_hard": 0.057677325562322156,
+      "ece_soft": 0.028095629372482684,
+      "ece_sampled": 0.03488371375783102,
+      "adaptive_ece_true": 0.033824558272316584,
+      "classwise_ece_true": 0.06555073673762517,
+      "brier_hard": 0.4469905567437127,
+      "brier_soft": 0.13195031347715877,
+      "brier_sampled": 0.5292180081691458,
+      "nll_hard": 0.7573792549501558,
+      "nll_soft": 0.8764987852937064,
+      "nll_sampled": 0.8764987852937064,
+      "temperature": 5.271424770355225
+    },
+    {
+      "name": "MCTS S=1 (ours)",
+      "ece_hard": 0.06611597363812542,
+      "ece_soft": 0.02018285010849809,
+      "ece_sampled": 0.03197242749219685,
+      "adaptive_ece_true": 0.029765084672984818,
+      "classwise_ece_true": 0.06304274515526577,
+      "brier_hard": 0.4488051882856294,
+      "brier_soft": 0.13141331738309422,
+      "brier_sampled": 0.5286810120750812,
+      "nll_hard": 0.7615780563820528,
+      "nll_soft": 0.8768172056213626,
+      "nll_sampled": 0.8768172056213626,
+      "temperature": 5.4489264488220215
+    },
+    {
+      "name": "SLTS (ours)",
+      "ece_hard": 0.05815016698898532,
+      "ece_soft": 0.02762482311712983,
+      "ece_sampled": 0.034539636291596995,
+      "adaptive_ece_true": 0.03361658824939106,
+      "classwise_ece_true": 0.06528176908809759,
+      "brier_hard": 0.4470856231995786,
+      "brier_soft": 0.13191371315334904,
+      "brier_sampled": 0.5291814078453361,
+      "nll_hard": 0.7576059243675343,
+      "nll_soft": 0.8765062822782864,
+      "nll_sampled": 0.8765062822782864,
+      "temperature": 5.281141757965088
+    },
+    {
+      "name": "SoftPlatt (ours)",
+      "ece_hard": 0.0701703115120559,
+      "ece_soft": 0.026801083002457187,
+      "ece_sampled": 0.03166208901999465,
+      "adaptive_ece_true": 0.029192407760833712,
+      "classwise_ece_true": 0.03181512525623766,
+      "brier_hard": 0.4220184677938319,
+      "brier_soft": 0.11397876280162864,
+      "brier_sampled": 0.5112464574936156,
+      "nll_hard": 0.7028623263178972,
+      "nll_soft": 0.8407475842889289,
+      "nll_sampled": 0.8407475842889289,
+      "temperature": null
+    },
+    {
+      "name": "VS (ours)",
+      "ece_hard": 0.06634930501630387,
+      "ece_soft": 0.03046339619653533,
+      "ece_sampled": 0.0391238549656032,
+      "adaptive_ece_true": 0.03350732729135603,
+      "classwise_ece_true": 0.0646258558399275,
+      "brier_hard": 0.4382977556794075,
+      "brier_soft": 0.1280205344833277,
+      "brier_sampled": 0.5252882291753147,
+      "nll_hard": 0.7437654438922542,
+      "nll_soft": 0.869258587987544,
+      "nll_sampled": 0.869258587987544,
+      "temperature": null
+    },
+    {
+      "name": "Dirichlet-Soft (ours)",
+      "ece_hard": 0.07508001604291518,
+      "ece_soft": 0.024726903695294934,
+      "ece_sampled": 0.031898397309855164,
+      "adaptive_ece_true": 0.027096509011121386,
+      "classwise_ece_true": 0.02954505252614188,
+      "brier_hard": 0.4146287819449999,
+      "brier_soft": 0.11179359493007926,
+      "brier_sampled": 0.5090612896220663,
+      "nll_hard": 0.6914641357243191,
+      "nll_soft": 0.8363608405178826,
+      "nll_sampled": 0.8363608405178826,
+      "temperature": null
+    },
+    {
+      "name": "HB-Hard",
+      "ece_hard": 0.027647534049162127,
+      "ece_soft": 0.10742916574363116,
+      "ece_sampled": 0.10752872919990379,
+      "adaptive_ece_true": 0.10258776867402121,
+      "classwise_ece_true": 0.0970988520059206,
+      "brier_hard": 0.47735719328136583,
+      "brier_soft": 0.17704330387654743,
+      "brier_sampled": 0.5743109985685345,
+      "nll_hard": 0.868320382675573,
+      "nll_soft": 0.9889045748533931,
+      "nll_sampled": 0.9889045748533931,
+      "temperature": null
+    },
+    {
+      "name": "HB-Soft (ours)",
+      "ece_hard": 0.07863079590451358,
+      "ece_soft": 0.007241535221221165,
+      "ece_sampled": 0.014230347995047554,
+      "adaptive_ece_true": 0.06721574163295248,
+      "classwise_ece_true": 0.06674423117730531,
+      "brier_hard": 0.48489414662892544,
+      "brier_soft": 0.1591909360339164,
+      "brier_sampled": 0.5564586307259034,
+      "nll_hard": 0.846990241502117,
+      "nll_soft": 0.9454789034566333,
+      "nll_sampled": 0.9454789034566333,
+      "temperature": null
+    },
+    {
+      "name": "IR-Soft (ours)",
+      "ece_hard": 0.08271775572209614,
+      "ece_soft": 0.009805951408644665,
+      "ece_sampled": 0.02148223351230207,
+      "adaptive_ece_true": 0.03960058789319847,
+      "classwise_ece_true": 0.07202779695956311,
+      "brier_hard": 0.4803428426430671,
+      "brier_soft": 0.1565444341515245,
+      "brier_sampled": 0.5538121288435115,
+      "nll_hard": 0.8401384924621813,
+      "nll_soft": 0.9416653289763149,
+      "nll_sampled": 0.9416653289763149,
+      "temperature": null
+    }
+  ],
+  "strat_results": {
+    "TS": {
+      "entropy_threshold": 0.6843432784080505,
+      "ece_soft_ambiguous": 0.21458009056364877,
+      "n_ambiguous": 780,
+      "ece_soft_clear": 0.026572587560656145,
+      "n_clear": 777
+    },
+    "Platt (PS)": {
+      "entropy_threshold": 0.6843432784080505,
+      "ece_soft_ambiguous": 0.21614444075773157,
+      "n_ambiguous": 780,
+      "ece_soft_clear": 0.04180583104663836,
+      "n_clear": 777
+    },
+    "SLTS (ours)": {
+      "entropy_threshold": 0.6843432784080505,
+      "ece_soft_ambiguous": 0.13036527369075865,
+      "n_ambiguous": 780,
+      "ece_soft_clear": 0.075512308732845,
+      "n_clear": 777
+    },
+    "MCTS (ours)": {
+      "entropy_threshold": 0.6843432784080505,
+      "ece_soft_ambiguous": 0.13081126384055006,
+      "n_ambiguous": 780,
+      "ece_soft_clear": 0.07501659055685143,
+      "n_clear": 777
+    }
+  },
+  "quant_results": {
+    "Uncalibrated": [
+      {
+        "quantile": 1,
+        "entropy_lo": 5.5262041470660606e-11,
+        "entropy_hi": 0.5100141167640686,
+        "ece_soft": 0.15500740609887534,
+        "n": 382
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.5100141167640686,
+        "entropy_hi": 0.6843432784080505,
+        "ece_soft": 0.3531493968742935,
+        "n": 395
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6843432784080505,
+        "entropy_hi": 0.803044855594635,
+        "ece_soft": 0.4395134980771115,
+        "n": 388
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.803044855594635,
+        "entropy_hi": 1.0982095003128052,
+        "ece_soft": 0.48702012119833765,
+        "n": 392
+      }
+    ],
+    "TS": [
+      {
+        "quantile": 1,
+        "entropy_lo": 5.5262041470660606e-11,
+        "entropy_hi": 0.5100141167640686,
+        "ece_soft": 0.08177077524968625,
+        "n": 382
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.5100141167640686,
+        "entropy_hi": 0.6843432784080505,
+        "ece_soft": 0.11330554445238805,
+        "n": 395
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6843432784080505,
+        "entropy_hi": 0.803044855594635,
+        "ece_soft": 0.1928799512853712,
+        "n": 388
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.803044855594635,
+        "entropy_hi": 1.0982095003128052,
+        "ece_soft": 0.23605879984929093,
+        "n": 392
+      }
+    ],
+    "Platt (PS)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 5.5262041470660606e-11,
+        "entropy_hi": 0.5100141167640686,
+        "ece_soft": 0.05212672907586028,
+        "n": 382
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.5100141167640686,
+        "entropy_hi": 0.6843432784080505,
+        "ece_soft": 0.11577217872667164,
+        "n": 395
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6843432784080505,
+        "entropy_hi": 0.803044855594635,
+        "ece_soft": 0.19249645451122183,
+        "n": 388
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.803044855594635,
+        "entropy_hi": 1.0982095003128052,
+        "ece_soft": 0.2395511210221341,
+        "n": 392
+      }
+    ],
+    "SLTS (ours)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 5.5262041470660606e-11,
+        "entropy_hi": 0.5100141167640686,
+        "ece_soft": 0.17353923381330616,
+        "n": 382
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.5100141167640686,
+        "entropy_hi": 0.6843432784080505,
+        "ece_soft": 0.04861693482704553,
+        "n": 395
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6843432784080505,
+        "entropy_hi": 0.803044855594635,
+        "ece_soft": 0.10684125050998375,
+        "n": 388
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.803044855594635,
+        "entropy_hi": 1.0982095003128052,
+        "ece_soft": 0.15364925581866834,
+        "n": 392
+      }
+    ],
+    "MCTS (ours)": [
+      {
+        "quantile": 1,
+        "entropy_lo": 5.5262041470660606e-11,
+        "entropy_hi": 0.5100141167640686,
+        "ece_soft": 0.1730273858697704,
+        "n": 382
+      },
+      {
+        "quantile": 2,
+        "entropy_lo": 0.5100141167640686,
+        "entropy_hi": 0.6843432784080505,
+        "ece_soft": 0.04883351358526114,
+        "n": 395
+      },
+      {
+        "quantile": 3,
+        "entropy_lo": 0.6843432784080505,
+        "entropy_hi": 0.803044855594635,
+        "ece_soft": 0.1073007454049111,
+        "n": 388
+      },
+      {
+        "quantile": 4,
+        "entropy_lo": 0.803044855594635,
+        "entropy_hi": 1.0982095003128052,
+        "ece_soft": 0.1540818790268457,
+        "n": 392
+      }
+    ]
+  },
+  "ts_temperature": 3.8098275661468506,
+  "slts_temperature": 5.281141757965088,
+  "mcts_temperature": 5.271424770355225,
+  "pslts_temperature": 3.511072874069214,
+  "ls_ts_temperature": 6.147881031036377,
+  "voted_label_accuracy": 0.6919370382267909,
+  "n_total": 3113,
+  "n_cal": 1556,
+  "n_test": 1557,
+  "n_bins": 15,
+  "seed": 42
+}
