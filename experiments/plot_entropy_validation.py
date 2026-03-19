@@ -3,19 +3,19 @@ Empirical validation of Proposition 2 (entropy-gap relationship).
 
 For CIFAR-10H (ResNet-50 and ViT-B/16) and ChaosNLI (DeBERTa-v3):
 - Bin test examples by annotation entropy H(x)
-- Compute per-bin ECE_true for TS and SLTS (voted-label vs ambiguity-aware)
-- Show that the true-label calibration error of TS increases with H(x)
+- Compute per-bin pointwise true-label calibration error for TS
+- Show that the error increases with H(x), confirming Proposition 2
+- All three dataset/arch curves on a single-column figure
 
 Usage
 -----
     cd experiments/
-    python plot_entropy_validation.py [--cache-dir ./cache] [--results-dir ./results]
-                                       [--figures-dir ./figures] [--seed 42] [--n-bins 5]
+    python plot_entropy_validation.py [--cache-dir ./cache] [--figures-dir ../paper/figs]
+                                       [--seed 42] [--n-entropy-bins 5]
 """
 
 import argparse
 import sys
-import json
 from pathlib import Path
 
 import numpy as np
@@ -23,15 +23,14 @@ import torch
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 
 sys.path.insert(0, str(Path(__file__).parent))
-from calibration import TemperatureScaling, SoftLabelTS, apply_parametric
+from calibration import TemperatureScaling, apply_parametric
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Data loaders (same split logic as run_lsts_ablation.py)
+# Data loaders (same split logic as main experiments)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_cifar10h(cache_dir: str, arch: str, seed: int):
@@ -118,124 +117,97 @@ def annotation_entropy(soft: np.ndarray) -> np.ndarray:
 
 
 def ece_true_per_example(probs: np.ndarray, soft_labels: np.ndarray) -> np.ndarray:
-    """
-    Per-example true-label calibration error.
-    Uses sampled-label ECE: for each example, draw a label from soft_labels
-    and compute expected |confidence - accuracy|.
-
-    Here we use the expected value: E_y~pi[|hat_p(y_hat) - 1(y=y_hat)|].
-    Simplified: ECE contribution = |p_top - pi_top| where p_top = max(probs)
-    and pi_top = soft_labels for the predicted class.
-    """
+    """Per-example pointwise true-label calibration error: |p_top - pi_top|."""
     pred_class = probs.argmax(axis=1)
     p_top = probs[np.arange(len(probs)), pred_class]
     pi_top = soft_labels[np.arange(len(soft_labels)), pred_class]
     return np.abs(p_top - pi_top)
 
 
-def compute_entropy_bins(probs_ts, probs_slts, soft_te, n_entropy_bins=5):
-    """
-    Bin test examples by annotation entropy, compute mean per-example
-    true-label calibration error in each bin.
-    """
+def compute_entropy_bins_ts(probs_ts, soft_te, n_entropy_bins=5):
+    """Bin test examples by annotation entropy, return per-bin TS error stats."""
     H = annotation_entropy(soft_te)
     bin_edges = np.percentile(H, np.linspace(0, 100, n_entropy_bins + 1))
-    bin_edges[-1] += 1e-6  # include max
+    bin_edges[-1] += 1e-6
 
-    err_ts   = ece_true_per_example(probs_ts, soft_te)
-    err_slts = ece_true_per_example(probs_slts, soft_te)
+    err_ts = ece_true_per_example(probs_ts, soft_te)
 
-    H_centers, ts_mean, slts_mean, ts_std, slts_std, counts = [], [], [], [], [], []
+    H_centers, ts_mean, ts_se = [], [], []
     for b in range(n_entropy_bins):
         mask = (H >= bin_edges[b]) & (H < bin_edges[b + 1])
         if mask.sum() == 0:
             continue
         H_centers.append((bin_edges[b] + bin_edges[b + 1]) / 2)
         ts_mean.append(err_ts[mask].mean())
-        slts_mean.append(err_slts[mask].mean())
-        ts_std.append(err_ts[mask].std() / np.sqrt(mask.sum()))
-        slts_std.append(err_slts[mask].std() / np.sqrt(mask.sum()))
-        counts.append(mask.sum())
+        ts_se.append(err_ts[mask].std() / np.sqrt(mask.sum()))
 
-    return (np.array(H_centers), np.array(ts_mean), np.array(slts_mean),
-            np.array(ts_std), np.array(slts_std), np.array(counts))
+    return np.array(H_centers), np.array(ts_mean), np.array(ts_se)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plotting style
+# ─────────────────────────────────────────────────────────────────────────────
+
+CONFIGS_STYLE = {
+    "CIFAR-10H ResNet-50":  {"color": "#d62728", "marker": "o"},
+    "CIFAR-10H ViT-B/16":   {"color": "#ff7f0e", "marker": "s"},
+    "ChaosNLI DeBERTa-v3":  {"color": "#1f77b4", "marker": "D"},
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
-STYLE = {
-    "TS":   {"color": "#d62728", "marker": "o", "label": "TS (voted-label)"},
-    "SLTS": {"color": "#1f77b4", "marker": "s", "label": "SLTS (soft-label)"},
-}
-
-
-def plot_panel(ax, H_centers, ts_mean, slts_mean, ts_std, slts_std, title, n_entropy_bins):
-    x = np.arange(len(H_centers))
-    ax.errorbar(x, ts_mean * 100, yerr=ts_std * 100,
-                color=STYLE["TS"]["color"], marker=STYLE["TS"]["marker"],
-                linewidth=1.5, markersize=5, capsize=3, label="TS")
-    ax.errorbar(x, slts_mean * 100, yerr=slts_std * 100,
-                color=STYLE["SLTS"]["color"], marker=STYLE["SLTS"]["marker"],
-                linewidth=1.5, markersize=5, capsize=3, label="SLTS")
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"{v:.2f}" for v in H_centers], fontsize=8)
-    ax.set_xlabel("Annotation entropy $H(x)/\\log K$", fontsize=9)
-    ax.set_ylabel("Pointwise calibration error (%)", fontsize=9)
-    ax.set_title(title, fontsize=9, fontweight="bold")
-    ax.grid(axis="y", linestyle="--", alpha=0.4)
-    ax.tick_params(labelsize=8)
-
-
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cache-dir",   default="./cache")
-    parser.add_argument("--figures-dir", default="./figures")
-    parser.add_argument("--seed",        type=int, default=42)
-    parser.add_argument("--n-entropy-bins", type=int, default=5)
+    parser.add_argument("--cache-dir",      default="./cache")
+    parser.add_argument("--figures-dir",     default="../paper/figs")
+    parser.add_argument("--seed",            type=int, default=42)
+    parser.add_argument("--n-entropy-bins",  type=int, default=5)
     args = parser.parse_args()
 
     Path(args.figures_dir).mkdir(parents=True, exist_ok=True)
 
     configs = [
-        ("CIFAR-10H\nResNet-50",  load_cifar10h, "resnet50"),
-        ("CIFAR-10H\nViT-B/16",   load_cifar10h, "vit_b16"),
-        ("ChaosNLI\nDeBERTa-v3",  load_chaosnli, "deberta_v3"),
+        ("CIFAR-10H ResNet-50",  load_cifar10h, "resnet50"),
+        ("CIFAR-10H ViT-B/16",   load_cifar10h, "vit_b16"),
+        ("ChaosNLI DeBERTa-v3",  load_chaosnli, "deberta_v3"),
     ]
 
-    fig, axes = plt.subplots(1, 3, figsize=(10, 3.2))
+    # Single-column figure (IEEEtran single-column width ~3.5in)
+    fig, ax = plt.subplots(1, 1, figsize=(3.5, 2.8))
 
-    for ax, (title, loader, arch) in zip(axes, configs):
-        print(f"[{title.replace(chr(10), ' ')}] Loading…")
+    for label, loader, arch in configs:
+        print(f"[{label}] Loading...")
         lc, lt, yh_c, yh_t, ys_c, ys_t = loader(args.cache_dir, arch, args.seed)
 
         yh_c_t = torch.tensor(yh_c, dtype=torch.long)
-        ys_c_t = torch.tensor(ys_c, dtype=torch.float32)
 
-        # Fit TS and SLTS
-        ts   = TemperatureScaling().fit(lc, yh_c_t)
-        slts = SoftLabelTS().fit(lc, ys_c_t)
+        # Fit TS only
+        ts = TemperatureScaling().fit(lc, yh_c_t)
+        probs_ts = apply_parametric(ts, lt.numpy())
 
-        probs_ts   = apply_parametric(ts,   lt.numpy())
-        probs_slts = apply_parametric(slts, lt.numpy())
-
-        H_c, ts_m, slts_m, ts_s, slts_s, cnts = compute_entropy_bins(
-            probs_ts, probs_slts, ys_t, n_entropy_bins=args.n_entropy_bins
+        H_c, ts_m, ts_se = compute_entropy_bins_ts(
+            probs_ts, ys_t, n_entropy_bins=args.n_entropy_bins
         )
-        print(f"  Bins: {cnts} | H_centers: {H_c.round(3)}")
-        print(f"  TS    ECE%: {np.round(ts_m*100, 2)}")
-        print(f"  SLTS  ECE%: {np.round(slts_m*100, 2)}")
+        print(f"  H_centers: {H_c.round(3)}")
+        print(f"  TS ECE%:   {np.round(ts_m * 100, 2)}")
 
-        plot_panel(ax, H_c, ts_m, slts_m, ts_s, slts_s, title, args.n_entropy_bins)
+        style = CONFIGS_STYLE[label]
+        ax.errorbar(
+            H_c, ts_m * 100, yerr=ts_se * 100,
+            color=style["color"], marker=style["marker"],
+            linewidth=1.4, markersize=5, capsize=3,
+            label=label,
+        )
 
-    # Shared legend
-    legend_elements = [
-        Line2D([0], [0], color=STYLE["TS"]["color"],   marker="o", linewidth=1.5, markersize=5, label="TS (voted-label)"),
-        Line2D([0], [0], color=STYLE["SLTS"]["color"], marker="s", linewidth=1.5, markersize=5, label="SLTS (soft-label)"),
-    ]
-    fig.legend(handles=legend_elements, loc="lower center", ncol=2,
-               fontsize=9, frameon=True, bbox_to_anchor=(0.5, -0.05))
+    ax.set_xlabel(r"Normalised annotation entropy $H(x)/\log K$", fontsize=9)
+    ax.set_ylabel("Pointwise calibration error (%)", fontsize=9)
+    ax.legend(fontsize=7.5, loc="upper left", frameon=True, fancybox=False,
+              edgecolor="0.7")
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.tick_params(labelsize=8)
 
     fig.tight_layout()
 
@@ -243,7 +215,7 @@ def main():
     out_png = Path(args.figures_dir) / "fig_entropy_validation.png"
     fig.savefig(out_pdf, bbox_inches="tight")
     fig.savefig(out_png, bbox_inches="tight", dpi=150)
-    print(f"\nSaved → {out_pdf}")
+    print(f"\nSaved -> {out_pdf}")
 
 
 if __name__ == "__main__":

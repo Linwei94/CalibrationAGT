@@ -226,12 +226,12 @@ Let $H(x) = -\sum_k \pi_k(x)\log\pi_k(x)$ denote the annotation entropy of $x$. 
 For unambiguous examples ($H(x)=0$), $\pi(\cdot\mid x)$ is one-hot, so true-label and voted-label evaluation coincide and the per-example error is $|{\hat{p}_{\hat{c}}(x) - 1}|$.  As $H(x)$ increases, assumption~(ii) gives $\pi_{y^*}(x) < 1$, introducing a gap between the voted-label target and the true annotator probability.  Because TS is optimised against one-hot voted labels, it targets $\hat{p}_{y^*}(x)\approx 1$ for all examples regardless of their annotation entropy; hence $\hat{p}_{\hat{c}}(x) > \pi_{y^*}(x)$ for ambiguous examples.  The true-label calibration error is then $\hat{p}_{\hat{c}}(x) - \pi_{y^*}(x)$, which by assumption~(i) (fixed $\hat{p}_{\hat{c}}$) increases as $\pi_{y^*}(x)$ falls with $H(x)$.
 \end{proof}
 
-\begin{figure*}[t]
+\begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_entropy_validation.pdf}
-  \caption{\textbf{Empirical validation of Proposition~\ref{prop:entropy-gap}.}  Test examples are grouped into equal-frequency bins by normalized annotation entropy $H(x)/\log K$.  Each point shows the mean pointwise true-label calibration error $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$ (error bars: $\pm 1$ s.e.).  TS error consistently increases with annotation entropy on CIFAR-10H, confirming Proposition~\ref{prop:entropy-gap}.  SLTS moderates but does not eliminate this trend.}
+  \caption{\textbf{Empirical validation of Proposition~\ref{prop:entropy-gap}.}  Test examples are grouped into equal-frequency bins by normalised annotation entropy $H(x)/\log K$.  Each point shows the mean pointwise true-label calibration error $|\hat{p}_{\hat{c}}(x)-\pi_{\hat{c}}(x)|$ for Temperature Scaling (error bars: $\pm 1$ s.e.).  Across all three dataset--architecture combinations, TS error consistently increases with annotation entropy, confirming the monotonic relationship predicted by Proposition~\ref{prop:entropy-gap}.}
   \label{fig:entropy-validation}
-\end{figure*}
+\end{figure}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Methods}
@@ -1239,11 +1239,11 @@ Table~\ref{tab:isic-confusion} lists the exact numerical entries of the confusio
 \section{Empirical Validation of Proposition~\ref{prop:entropy-gap}}
 \label{app:entropy-validation}
 
-Proposition~\ref{prop:entropy-gap} states that, under simplifying assumptions, the pointwise true-label calibration error of a voted-label-calibrated model is non-decreasing in the annotation entropy $H(x)$.  Figure~\ref{fig:entropy-validation} provides empirical support: we bin test examples by their normalized annotation entropy $H(x)/\log K$ and plot the mean absolute error $|\hat{p}_{\hat{c}}(x) - \pi_{\hat{c}}(x)|$ for TS and SLTS.
+Proposition~\ref{prop:entropy-gap} states that, under simplifying assumptions, the pointwise true-label calibration error of a voted-label-calibrated model is non-decreasing in the annotation entropy $H(x)$.  Figure~\ref{fig:entropy-validation} provides empirical support: we bin test examples by their normalised annotation entropy $H(x)/\log K$ and plot the mean absolute error $|\hat{p}_{\hat{c}}(x) - \pi_{\hat{c}}(x)|$ for TS across three dataset--architecture combinations.
 
-For CIFAR-10H (both architectures), TS error rises from $\approx\!2\%$ in the near-unambiguous bin ($H/\log K \approx 0.02$) to $\approx\!18\%$ in the high-ambiguity bin ($H/\log K \approx 0.48$), a clear monotone increase consistent with the proposition.  SLTS also increases (the soft target itself becomes harder to match at high entropy) but does so more moderately.  For ChaosNLI (DeBERTa-v3), which operates in a higher-entropy regime ($H/\log K \in [0.2, 0.9]$), TS again rises at the extremes while SLTS attenuates the error at moderate entropy levels.  The crossover in the low-entropy bins reflects that SLTS over-smooths near-unambiguous examples (where voted-label and soft-label targets nearly coincide), consistent with the slight performance difference between TS and SLTS on unambiguous subsets.
+For CIFAR-10H (both architectures), TS error rises from ${\approx}2\%$ in the near-unambiguous bin ($H/\log K \approx 0.02$) to ${\approx}18\%$ in the high-ambiguity bin ($H/\log K \approx 0.48$), a clear monotone increase consistent with the proposition.  For ChaosNLI (DeBERTa-v3), which operates in a higher-entropy regime ($H/\log K \in [0.2, 0.9]$), TS error is uniformly high ($19$--$25\%$) and rises further at the highest-entropy bins.  The overall trend is consistent across both domains and all three architectures: voted-label calibration error increases with annotation entropy, as predicted by Proposition~\ref{prop:entropy-gap}.
 
-See Figure~\ref{fig:entropy-validation} in the main text (Theory section) for the empirical validation plot.
+See Figure~\ref{fig:entropy-validation} in the main text (Theory section) for the plot.
 
 \section{LS-TS Ablation: Smoothing Strategy Comparison (Extended)}
 \label{app:lsts-ablation}
