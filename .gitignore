@@ -1,26 +1,17 @@
+# Model checkpoints (hosted on HuggingFace)
+experiments/cache/*.pt
+experiments/cache/*.pth
+
+# Raw datasets (download separately)
+experiments/cache/cifar10/
+experiments/cache/cifar10data/
+experiments/data/
+
 # Python
 __pycache__/
-*.py[cod]
-*.egg-info/
+*.pyc
+*.pyo
 .venv/
-venv/
-*.pth
-.env
-
-# PyTorch / ML
-*.pt
-*.ckpt
-*.safetensors
-wandb/
-runs/
-lightning_logs/
-
-# Dataset files (large, not tracked)
-data/
-datasets/
-*.h5
-*.hdf5
-*.lmdb
 
 # LaTeX build artifacts
 paper/*.aux
@@ -28,35 +19,12 @@ paper/*.bbl
 paper/*.blg
 paper/*.log
 paper/*.out
-paper/*.toc
-paper/*.fls
-paper/*.fdb_latexmk
-paper/*.synctex.gz
-paper/*.nav
-paper/*.snm
-paper/*.vrb
+paper/cover_letter.aux
+paper/cover_letter.log
+paper/cover_letter.out
 
-# Generated figures (reproducible via make_figures.py)
-paper/figs/*.pdf
-paper/figs/*.png
+# Generated figures (reproducible)
+experiments/figures/
 
-# Compiled paper PDF
-# paper/main.pdf
-
-# Experiment results (generate locally)
-experiments/results/
-
-# Toy example generated images
-toy_example/*.png
-
-# OS / editor
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
-*~
-
-# Claude internal
-.claude/
-experiments/cache/
+# Misc
+*.DS_Store

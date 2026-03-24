@@ -236,6 +236,21 @@
       "nll_soft": 1.4229009502995538,
       "nll_sampled": 1.4229009502995538,
       "temperature": null
+    },
+    {
+      "name": "Oracle TS",
+      "ece_hard": 0.230948106323989,
+      "ece_soft": 0.02786068219942344,
+      "ece_sampled": 0.035068233883440325,
+      "adaptive_ece_true": 0.02967378576646125,
+      "classwise_ece_true": 0.03131557839289228,
+      "brier_hard": 0.3497456860055362,
+      "brier_soft": 0.20483471630771288,
+      "brier_sampled": 0.6090641235087993,
+      "nll_hard": 0.7793735248447305,
+      "nll_soft": 1.3462767586076245,
+      "nll_sampled": 1.3462767586076245,
+      "temperature": 4.937577724456787
     }
   ],
   "quant_results": {

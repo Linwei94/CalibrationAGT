@@ -1,134 +1,115 @@
 # Confidence Calibration under Ambiguous Ground Truth
 
-> **NeurIPS 2026 submission** — Anonymous authors
+> **Submitted to IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI)**
+>
+> Linwei Tao, Haoyang Luo, Minjing Dong, Chang Xu
 
-This repository studies post-hoc calibration when an input admits multiple plausible labels. The paper distinguishes:
+## Overview
 
-- `ECE_voted`: calibration against the majority-voted one-hot label
-- `ECE_true`: calibration against labels drawn from the underlying ambiguous label distribution reflected by annotator disagreement
+Standard post-hoc calibration assumes a unique ground-truth label per input and fits calibrators against majority-voted labels.
+We show this practice is fundamentally flawed under label ambiguity: Temperature Scaling is biased toward temperatures that underestimate annotator uncertainty, with the true-label miscalibration gap growing monotonically with annotation entropy.
 
-The main finding is that standard post-hoc calibrators such as Temperature Scaling, Platt scaling, and Histogram Binning can improve `ECE_voted` while still leaving large `ECE_true`. Our methods address both practical regimes:
+We propose a family of ambiguity-aware post-hoc calibrators that optimise proper scoring rules against the full label distribution and require no model retraining, spanning three practical annotation regimes:
 
-- `Ambiguity-aware calibrators` when annotator distributions are available at calibration time: `SLTS`, `MCTS`, `VS`, `IR-Soft`, `SoftPlatt`, `Dirichlet-Soft`
-- `LS-TS` when the calibration set contains only one-hot voted labels
+| Regime | Method | Description |
+|--------|--------|-------------|
+| Full annotator distribution available | Dirichlet-Soft, SoftPlatt, VS, IR-Soft | Optimise soft-label objectives against the annotator distribution |
+| Individual annotations (not aggregated) | MCTS *S*=1 | Single randomly drawn annotation per example suffices |
+| Voted labels only | LS-TS | Data-driven pseudo-soft target from model confidence |
 
-## Main results
+## Main Results
 
-### Toy motivating example
+`ECE_true` (%, lower is better) across 8 settings:
 
-The controlled 3-class toy example uses three Gaussian clusters:
-
-- class 0: `N((-3.2, 1.1), diag(0.60, 0.45))`, `pi=[1,0,0]`
-- ambiguous middle cluster: `N((0, 0), diag(1.15, 0.75))`, `pi=[0,0.70,0.30]`
-- class 2: `N((3.2, -1.1), diag(0.60, 0.45))`, `pi=[0,0,1]`
-
-The middle cluster is always majority-voted as class 1, so standard calibrators see it as a one-hot target even though the underlying label distribution is `70/30`.
-
-| Method | ECE_voted ↓ | ECE_true ↓ |
-|---|---:|---:|
-| Uncalibrated | 1.34 | 7.54 |
-| TS | 1.26 | 8.88 |
-| Platt (PS) | **0.77** | 8.70 |
-| HB-Hard | 1.28 | 8.79 |
-
-This is the qualitative point used in Figure 1 and Table 1 of the paper: traditional post-hoc methods help `ECE_voted`, but they do not fix `ECE_true`.
-
-### Benchmarks
-
-Main paper benchmarks:
-
-- `CIFAR-10H`: repeated human labels expose perceptual ambiguity
-- `ChaosNLI`: 100 human labels expose semantic ambiguity
-- `ISIC 2019`: synthetic dermatologist readers model clinically plausible differential diagnosis
-- `DermaMNIST`: supplementary medical benchmark in the appendix
-
-Representative `ECE_true` results from Table 2:
-
-| Method | C10H R50 | C10H ViT | NLI Rob | NLI Deb | ISIC ENet | ISIC ViT | Derm R18 | Derm ViT |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| TS | 4.29 | 4.48 | 10.55 | 11.63 | 18.54 | 16.59 | 23.05 | 24.36 |
+| Method | C10H R50 | C10H ViT | NLI RoB | NLI DeB | ISIC ENet | ISIC ViT | Derm R18 | Derm ViT |
+|--------|---:|---:|---:|---:|---:|---:|---:|---:|
+| TS | 4.29 | 4.48 | 10.55 | 11.63 | 18.72 | 17.04 | 22.25 | 24.65 |
 | LS-TS | 1.57 | 2.37 | 4.16 | 2.65 | 9.34 | 15.49 | 5.05 | 7.36 |
-| SLTS | 1.51 | 0.85 | 3.22 | 3.45 | 9.71 | 6.96 | 4.61 | 3.58 |
-| Dir.-Soft | 1.25 | **0.72** | **2.57** | 3.19 | 7.50 | 6.85 | 3.55 | **3.32** |
-| IR-Soft | **0.72** | 0.91 | 2.65 | **2.15** | **1.75** | **1.73** | **2.15** | 3.79 |
+| MCTS *S*=1 | 1.45 | 0.81 | 2.82 | 3.20 | 10.09 | 7.47 | 5.07 | 3.28 |
+| SLTS | 1.51 | 0.85 | 3.22 | 3.45 | 9.76 | 7.10 | 5.13 | 3.29 |
+| Dirichlet-Soft | **1.25** | **0.72** | **2.57** | 3.19 | 8.35 | 6.32 | 3.94 | 3.18 |
+| IR-Soft | 0.72 | 0.91 | 2.65 | **2.15** | **1.77** | **2.05** | **2.20** | **2.06** |
 
-## Repository structure
+## Repository Structure
 
-```text
+```
 experiments/
-  calibration.py
-  metrics.py
-  run_toy_example.py
-  plot_data_distribution.py
-  run_cifar10h.py
-  run_chaosnli.py
-  run_isic2019.py
-  run_dermamnist.py
-
-paper/
-  main.tex
-  main.pdf
-  make_figures.py
-  make_intro_ambiguity_figure.py
-  make_fig4_stratified.py
-  figs/
-
-results/
+  calibration.py            # All calibration methods (TS, SLTS, MCTS, LS-TS, VS, IR-Soft, SoftPlatt, Dirichlet-Soft, ...)
+  metrics.py                # ECE_true, aECE, cwECE, Brier, NLL
+  run_toy_example.py        # Toy motivating example (Figure 1)
+  run_cifar10h.py           # CIFAR-10H experiments
+  run_chaosnli.py           # ChaosNLI experiments
+  run_isic2019.py           # ISIC 2019 experiments
+  run_dermamnist.py         # DermaMNIST experiments
+  run_multiseed.py          # Multi-seed stability ablation
+  run_cal_size_ablation.py  # Calibration set size ablation
+  run_lsts_ablation.py      # LS-TS smoothing strategy ablation
+  run_ats_comparison.py     # ATS vs LS-TS comparison
+  add_mcts_s1.py            # Add MCTS S=1 results to existing JSON files
+  add_oracle_ts.py          # Add Oracle TS upper bound to existing JSON files
+  plot_entropy_validation.py     # Figure 3: entropy vs calibration error
+  plot_reliability_diagrams.py   # Reliability diagram figures
+  results/                  # JSON files with all experimental results
 ```
 
-## Reproducing the paper
-
-Dependencies:
+## Requirements
 
 ```bash
-pip install torch torchvision transformers numpy matplotlib scikit-learn scipy tqdm
+pip install torch torchvision transformers numpy matplotlib scikit-learn scipy tqdm pillow
 ```
 
-Toy figure:
+Tested with Python 3.12, PyTorch 2.x.
 
+## Data Preparation
+
+Download the following datasets and place them under `experiments/cache/`:
+
+- **CIFAR-10H**: [CIFAR-10H repository](https://github.com/jcpeterson/cifar-10h) — `cifar10h-probs.npy` + CIFAR-10 test logits
+- **ChaosNLI**: [ChaosNLI repository](https://github.com/easonnie/ChaosNLI) — extract `chaosNLI_v1.0/` under `cache/`
+- **ISIC 2019**: [ISIC Archive](https://challenge.isic-archive.com/data/) — training CSV + images
+- **DermaMNIST**: downloaded automatically via `medmnist` package
+
+Pre-extracted logits (model outputs on val/test sets) are provided in `cache/` to allow reproducing calibration results without re-running model training.
+
+Model checkpoints are available at: https://huggingface.co/linweitao/calibration-agt-checkpoints
+Download and place `.pt`/`.pth` files under `experiments/cache/` to reproduce training results.
+
+## Reproducing Results
+
+**Toy example:**
 ```bash
 python experiments/run_toy_example.py
 ```
 
-CIFAR-10H:
-
+**Main experiments:**
 ```bash
 python experiments/run_cifar10h.py --arch resnet50 --device cuda
 python experiments/run_cifar10h.py --arch vit_b16 --device cuda
-```
 
-ChaosNLI:
-
-```bash
 python experiments/run_chaosnli.py --arch roberta_large --device cuda
 python experiments/run_chaosnli.py --arch deberta_v3 --device cuda
-```
 
-ISIC 2019:
-
-```bash
 python experiments/run_isic2019.py --arch efficientnet_b4 --device cuda
 python experiments/run_isic2019.py --arch vit_s16 --device cuda
-```
 
-DermaMNIST:
-
-```bash
 python experiments/run_dermamnist.py --arch resnet18 --device cuda
 python experiments/run_dermamnist.py --arch vit_s16 --device cuda
 ```
 
-Paper:
-
+**Ablations:**
 ```bash
-cd paper
-pdflatex -interaction=nonstopmode main.tex
-bibtex main
-pdflatex -interaction=nonstopmode main.tex
-pdflatex -interaction=nonstopmode main.tex
+python experiments/run_multiseed.py
+python experiments/run_cal_size_ablation.py
+python experiments/run_lsts_ablation.py
+python experiments/run_ats_comparison.py
 ```
 
-## Notes
+**Figures:**
+```bash
+python experiments/plot_entropy_validation.py --figures-dir paper/figs
+python experiments/plot_reliability_diagrams.py
+```
 
-- `paper/main.tex` is the authoritative manuscript source.
-- `proposal.md` is an earlier planning document and intentionally preserves some historical framing that predates the current paper draft.
+## Results Files
+
+All results are stored as JSON files under `experiments/results/`. Each file contains a `main_results` list with per-method metrics (`ece_sampled`, `brier_sampled`, `nll_sampled`, `temperature`, etc.).

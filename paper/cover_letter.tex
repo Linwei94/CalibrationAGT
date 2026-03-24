@@ -1,0 +1,70 @@
+\documentclass[11pt,a4paper]{letter}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry}
+%\usepackage{microtype}
+\usepackage{hyperref}
+
+\signature{Linwei Tao \\ on behalf of all authors}
+\address{School of Computer Science \\ University of Sydney \\ Sydney, NSW 2006, Australia \\ linwei.tao@sydney.edu.au}
+\date{\today}
+
+\begin{document}
+
+\begin{letter}{
+  Editor-in-Chief \\
+  IEEE Transactions on Pattern Analysis and Machine Intelligence
+}
+
+\opening{Dear Editor-in-Chief,}
+
+We are pleased to submit our manuscript titled
+\textbf{``Confidence Calibration under Ambiguous Ground Truth''}
+for consideration for publication in
+\textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}.
+
+\textbf{Summary of contributions.}
+Standard post-hoc calibration assumes a unique ground-truth label per input and fits
+calibrators against majority-voted labels.
+We show that this practice is fundamentally flawed under label ambiguity:
+Temperature Scaling is theoretically biased toward temperatures that underestimate
+annotator uncertainty, with the true-label miscalibration gap growing monotonically
+with annotation entropy.
+To address this, we propose a family of ambiguity-aware post-hoc calibrators that
+optimise proper scoring rules against the full annotator distribution and require no
+model retraining.
+Our methods span three practical annotation regimes:
+(i)~Dirichlet-Soft leverages full annotator distributions and reduces true-label ECE
+by 55--87\% relative to Temperature Scaling across four benchmarks;
+(ii)~Monte Carlo Temperature Scaling with a single annotation per example (MCTS~$S{=}1$)
+matches full-distribution calibration within 0.6~pp ECE across all eight settings,
+demonstrating that pre-aggregated label distributions are unnecessary;
+and (iii)~Label-Smooth Temperature Scaling (LS-TS) operates with voted labels alone
+and reduces ECE by 9--77\% without any annotator data.
+
+\textbf{Relevance to TPAMI.}
+This work addresses a fundamental gap in the evaluation and improvement of model
+reliability for vision and language systems operating under genuine label ambiguity.
+We provide both theoretical analysis and large-scale empirical validation across
+vision (CIFAR-10H, ISIC~2019, DermaMNIST) and language (ChaosNLI) benchmarks,
+covering eight architecture configurations.
+We believe this contribution is well-suited to the TPAMI audience, which spans
+pattern recognition, computer vision, and machine learning.
+
+\textbf{Originality.}
+This manuscript has not been published previously and is not under consideration
+for publication elsewhere.
+All authors have approved the manuscript and agree with the submission to TPAMI.
+The work does not raise any ethical concerns; all datasets used are publicly available
+or derived from clinician-reported statistics in the published literature.
+
+We suggest the manuscript be classified as a \textbf{Regular Paper}.
+
+We look forward to receiving the reviewers' feedback and thank you for your time
+and consideration.
+
+\closing{Sincerely,}
+
+\end{letter}
+\end{document}
