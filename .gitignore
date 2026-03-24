@@ -28,3 +28,7 @@ experiments/figures/
 
 # Misc
 *.DS_Store
+
+# Internal planning files
+plan/
+progress/
