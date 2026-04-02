@@ -7,6 +7,10 @@ experiments/cache/cifar10/
 experiments/cache/cifar10data/
 experiments/data/
 
+# Cached logits, datasets, and experiment outputs (large binary files)
+experiments/cache/
+experiments/experiments/
+
 # Python
 __pycache__/
 *.pyc
