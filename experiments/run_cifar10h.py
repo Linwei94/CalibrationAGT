@@ -289,6 +289,14 @@ def run_experiment(args):
     # ── 5. Calibration ────────────────────────────────────────────────────────
     print("\n[5/6] Fitting calibration methods …")
 
+    # Optional: dump a depth-analysis bundle (see BUNDLES.md / analyze_depth.py)
+    if getattr(args, "dump_bundle", False):
+        from analyze_depth import save_bundle
+        save_bundle(str(Path(results_dir) / "bundles" / f"cifar10h_{arch}.npz"),
+                    name=f"cifar10h_{arch}", n_classes=N_CLASSES,
+                    logits_cal=logits_cal, logits_te=logits_te,
+                    soft_cal=ys_cal, soft_te=ys_te, hard_cal=yh_cal, hard_te=yh_te)
+
     # Parametric — baselines (hard labels)
     ts   = TemperatureScaling().fit(logits_cal, yh_cal_t)
     ps   = PlattScaling(N_CLASSES).fit(logits_cal, yh_cal_t)
@@ -444,6 +452,8 @@ def parse_args():
     p.add_argument("--arch",        default="resnet50",
                    choices=["resnet50", "vit_b16"],
                    help="backbone architecture (default: resnet50)")
+    p.add_argument("--dump-bundle", action="store_true",
+                   help="save a depth-analysis bundle to results/bundles/ (see BUNDLES.md)")
     return p.parse_args()
 
 

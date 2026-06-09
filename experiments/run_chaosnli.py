@@ -318,6 +318,14 @@ def run_experiment(args):
     # ── 5. Calibration ────────────────────────────────────────────────────────
     print("\n[5/5] Fitting calibration methods and evaluating ...")
 
+    # Optional: dump a depth-analysis bundle (see BUNDLES.md / analyze_depth.py)
+    if getattr(args, "dump_bundle", False):
+        from analyze_depth import save_bundle
+        save_bundle(str(Path(results_dir) / "bundles" / f"chaosnli_{arch}.npz"),
+                    name=f"chaosnli_{arch}", n_classes=N_CLASSES,
+                    logits_cal=logits_cal, logits_te=logits_te,
+                    soft_cal=ys_cal, soft_te=ys_te, hard_cal=yh_cal, hard_te=yh_te)
+
     # Parametric — baselines (hard/voted labels)
     ts   = TemperatureScaling().fit(logits_cal, yh_cal_t)
     ps   = PlattScaling(N_CLASSES).fit(logits_cal, yh_cal_t)
@@ -475,6 +483,8 @@ def parse_args():
     p.add_argument("--subset",      default="combined",
                    choices=["snli", "mnli", "combined"],
                    help="ChaosNLI subset (default: combined = SNLI + MNLI)")
+    p.add_argument("--dump-bundle", action="store_true",
+                   help="save a depth-analysis bundle to results/bundles/ (see BUNDLES.md)")
     return p.parse_args()
 
 

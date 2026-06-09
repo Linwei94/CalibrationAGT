@@ -11,43 +11,40 @@ so the bundle matches the published split, logits, and synthetic-annotation seed
 /path/to/python analyze_depth.py --demo      # synthetic data; verifies the four diagnostics
 ```
 
-## Real data: add 4 lines to each run script
+## Real data: just pass `--dump-bundle`
 
-Pull the logit cache first (`cache/` from the HF checkpoints repo). Then add, in each
-`run_*.py`, immediately **after the calibration/test arrays are materialised and
-before fitting** (i.e. just above the `ts = TemperatureScaling().fit(...)` line):
-
-**`run_cifar10h.py` and `run_chaosnli.py`** (cal/test arrays already named the same):
-```python
-from analyze_depth import save_bundle
-save_bundle(f"{results_dir}/bundles/{Path(out_path).stem if False else arch}.npz",
-            name=f"{arch}", n_classes=N_CLASSES,
-            logits_cal=logits_cal, logits_te=logits_te,
-            soft_cal=ys_cal, soft_te=ys_te, hard_cal=yh_cal, hard_te=yh_te)
-```
-(simplest: `name=f"cifar10h_{arch}"` / `f"chaosnli_{arch}"`, path `results/bundles/<name>.npz`.)
-
-**`run_isic2019.py` and `run_dermamnist.py`** (calibrate on val, evaluate on test):
-```python
-from analyze_depth import save_bundle
-save_bundle(f"{args.results_dir}/bundles/{DATASET}_{arch}.npz",
-            name=f"{DATASET}_{arch}", n_classes=N_CLASSES,
-            logits_cal=logits_val, logits_te=logits_test,
-            soft_cal=ys_val,       soft_te=ys_test,
-            hard_cal=val_labels,   hard_te=test_labels)
-```
-with `DATASET = "isic2019"` / `"dermamnist"`.
-
-`save_bundle` accepts numpy arrays or torch tensors, so passing either the
-`logits_cal` tensor (CIFAR/NLI) or the `logits_val` numpy array (ISIC/Derm) works.
-
-## Run the analysis
+The dump hook is now built into all four run scripts (flag-guarded; default off, so
+normal runs are unchanged). Pull the logit cache first (`cache/` from the HF
+checkpoints repo), then add `--dump-bundle` to any run:
 
 ```bash
-python run_cifar10h.py  --arch resnet50          # now also writes results/bundles/cifar10h_resnet50.npz
-...                                               # repeat for all 8 (dataset, arch) runs
-python analyze_depth.py --bundle-dir results/bundles    # analyse all; writes results/depth/*.json
+python run_cifar10h.py   --arch resnet50         --dump-bundle
+python run_cifar10h.py   --arch vit_b16          --dump-bundle
+python run_chaosnli.py   --arch roberta_large    --dump-bundle
+python run_chaosnli.py   --arch deberta_v3       --dump-bundle
+python run_isic2019.py   --arch efficientnet_b4  --dump-bundle
+python run_isic2019.py   --arch vit_s16          --dump-bundle
+python run_dermamnist.py --arch resnet18         --dump-bundle
+python run_dermamnist.py --arch vit_s16          --dump-bundle
 ```
+
+Each writes `results/bundles/<dataset>_<arch>.npz` using the exact calibration/test
+arrays that experiment computed (so the bundle matches the published split, logits,
+and synthetic-annotation seed). For CIFAR-10H/ChaosNLI the calibration split is `*_cal`;
+for ISIC/DermaMNIST it is the validation split and evaluation is the test split.
+
+## Then run the analysis
+
+```bash
+python analyze_depth.py --bundle-dir results/bundles    # writes results/depth/*.json
+```
+This produces the D1–D4 diagnostics and the `v̄−ū`, `ρ`, `ΔECE` numbers for the
+paper's Table `tab:lsts-valid` (Appendix N).
+
+## Manual alternative (if you prefer not to use the flag)
+
+`save_bundle(path, name, n_classes, logits_cal, logits_te, soft_cal, soft_te, hard_cal, hard_te)`
+in `analyze_depth.py` can be called directly with any arrays (numpy or torch tensors).
 
 ## Outputs (one JSON per bundle, under `results/depth/`)
 

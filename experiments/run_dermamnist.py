@@ -279,6 +279,8 @@ def parse_args():
     p.add_argument("--arch",        default="resnet18",
                    choices=["resnet18", "vit_s16"],
                    help="backbone architecture (default: resnet18)")
+    p.add_argument("--dump-bundle", action="store_true",
+                   help="save a depth-analysis bundle to results/bundles/ (see BUNDLES.md)")
     return p.parse_args()
 
 
@@ -344,6 +346,15 @@ def main():
     logits_v = torch.tensor(logits_val, dtype=torch.float32)
     yh_val_t = torch.tensor(val_labels, dtype=torch.long)
     ys_val_t = torch.tensor(ys_val,     dtype=torch.float32)
+
+    # Optional: dump a depth-analysis bundle (cal = val split, eval = test split)
+    if getattr(args, "dump_bundle", False):
+        from analyze_depth import save_bundle
+        save_bundle(str(Path(args.results_dir) / "bundles" / f"dermamnist_{arch}.npz"),
+                    name=f"dermamnist_{arch}", n_classes=N_CLASSES,
+                    logits_cal=logits_val, logits_te=logits_test,
+                    soft_cal=ys_val, soft_te=ys_test,
+                    hard_cal=val_labels, hard_te=test_labels)
 
     # Parametric baselines (hard labels)
     ts   = TemperatureScaling().fit(logits_v, yh_val_t)
