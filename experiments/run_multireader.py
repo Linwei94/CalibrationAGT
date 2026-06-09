@@ -127,29 +127,106 @@ def run(logits_cal, ann_cal, logits_test, ann_test, K, name, n_bins=15):
 # The model/logit-extraction mirrors run_isic2019.py exactly; only the labels differ.
 # ──────────────────────────────────────────────────────────────────────────────
 
-def load_lidc_idri(cache_dir):
-    """LIDC-IDRI lung nodules: 4 radiologists rate malignancy 1-5 per nodule.
-    Use `pylidc` to enumerate nodules with >=3 readers; map ratings -> K classes
-    (e.g. K=2: benign {1,2} vs malignant {4,5}, drop 3; or K=5 ordinal).
-    ann[i] = the per-reader class labels for nodule i (pad to R=4 with -1).
-    Train a small CNN on majority labels (train split), cache val/test logits as
-    in run_isic2019.extract_logits, then split val->calibration."""
-    raise NotImplementedError(
-        "LIDC-IDRI loader: install pylidc, build nodule crops + 4-reader labels, "
-        "train backbone, extract logits. Returns (logits_cal, ann_cal, logits_test, ann_test, K). "
-        "See run_isic2019.py for the backbone/extract_logits/split pattern.")
+def _train_extract_2d(patches, maj_labels, splits, K, device=None, epochs=15, seed=42):
+    """Train a ResNet-18 on majority labels (train split) and return logits for the
+    cal and test splits. patches: (N,3,224,224) float32; splits: dict with index arrays
+    'train','cal','test'. Mirrors the backbone/extract pattern of run_isic2019.py."""
+    import torch.nn as nn, torchvision
+    from torch.utils.data import DataLoader, TensorDataset
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(seed)
+    model = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, K); model = model.to(device)
+    Xtr = torch.tensor(patches[splits["train"]], dtype=torch.float32)
+    ytr = torch.tensor(maj_labels[splits["train"]], dtype=torch.long)
+    counts = torch.bincount(ytr, minlength=K).float()
+    w = counts.sum() / (K * counts.clamp(min=1))
+    opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    crit = nn.CrossEntropyLoss(weight=w.to(device))
+    dl = DataLoader(TensorDataset(Xtr, ytr), batch_size=64, shuffle=True)
+    model.train()
+    for _ in range(epochs):
+        for xb, yb in dl:
+            opt.zero_grad(); loss = crit(model(xb.to(device)), yb.to(device))
+            loss.backward(); opt.step()
+    def logits_of(ix):
+        model.eval(); out = []
+        with torch.no_grad():
+            for i in range(0, len(ix), 128):
+                xb = torch.tensor(patches[ix[i:i+128]], dtype=torch.float32, device=device)
+                out.append(model(xb).cpu().numpy())
+        return np.concatenate(out, 0)
+    return logits_of(splits["cal"]), logits_of(splits["test"])
+
+
+def load_lidc_idri(cache_dir, K=2, mal_thresh=4, seed=42):
+    """LIDC-IDRI lung nodules: up to 4 radiologists rate malignancy 1-5 per nodule.
+
+    REAL per-image multi-reader ground truth (Reviewer 1 W4). Requires `pylidc`
+    configured to point at the LIDC-IDRI DICOM archive (~125 GB; see pylidc docs).
+    NOT runnable in this sandbox (no data); verified for structure via py_compile and
+    the synthetic --demo path of this harness.
+
+    Pipeline: enumerate nodules with >=3 reader annotations; per reader map malignancy
+    rating -> class (K=2: >=mal_thresh => malignant=1 else benign=0; rating 3 kept as
+    benign by default); extract the largest-area 2D slice patch (HU-windowed, 224^2,
+    3-channel); split by patient (no leakage); train ResNet-18 on majority labels;
+    return cal/test logits + per-nodule reader-label arrays.
+    """
+    try:
+        import pylidc as pl
+        from pylidc.utils import consensus
+    except ImportError as e:
+        raise ImportError("LIDC loader needs `pip install pylidc` and a configured "
+                          "~/.pylidcrc pointing at the LIDC-IDRI DICOM data.") from e
+    import torch.nn.functional as Fn
+
+    def hu_window(img, lo=-1000, hi=400):
+        return np.clip((img - lo) / (hi - lo), 0, 1).astype(np.float32)
+
+    rng = np.random.default_rng(seed)
+    patches, ann_rows, maj, pid = [], [], [], []
+    scans = pl.query(pl.Scan).all()
+    for sc in scans:
+        clusters = sc.cluster_annotations()                  # group annotations per nodule
+        vol = sc.to_volume()
+        for anns in clusters:
+            if len(anns) < 3:                                # need >=3 readers
+                continue
+            ratings = [a.malignancy for a in anns]           # 1..5 per reader
+            labels = [1 if r >= mal_thresh else 0 for r in ratings]
+            row = np.full(4, -1, np.int64); row[:len(labels)] = labels[:4]
+            # largest-area slice from the consensus mask
+            cmask, cbbox, _ = consensus(anns, clevel=0.5)
+            areas = cmask.sum((0, 1)); z = int(areas.argmax())
+            sl = vol[cbbox][:, :, z]                          # (h,w) patch at largest-area slice
+            patch = torch.tensor(hu_window(sl))[None, None]   # (1,1,h,w)
+            patch = Fn.interpolate(patch, size=(224, 224), mode="bilinear", align_corners=False)
+            patches.append(patch.repeat(1, 3, 1, 1)[0].numpy())
+            ann_rows.append(row); maj.append(int(round(np.mean(labels)))); pid.append(sc.patient_id)
+    patches = np.stack(patches).astype(np.float32)
+    ann = np.stack(ann_rows); maj = np.asarray(maj, np.int64); pid = np.asarray(pid)
+
+    # patient-level split 60/20/20 (train / cal / test)
+    upid = rng.permutation(np.unique(pid)); n = len(upid)
+    tr_p, ca_p, te_p = upid[:int(.6*n)], upid[int(.6*n):int(.8*n)], upid[int(.8*n):]
+    sidx = lambda ps: np.where(np.isin(pid, ps))[0]
+    splits = {"train": sidx(tr_p), "cal": sidx(ca_p), "test": sidx(te_p)}
+    logits_cal, logits_test = _train_extract_2d(patches, maj, splits, K, seed=seed)
+    return logits_cal, ann[splits["cal"]], logits_test, ann[splits["test"]], K
 
 def load_vindr_cxr(cache_dir):
     """VinDr-CXR: 3 independent radiologists per image (image-level findings).
     Pick a multi-class label (e.g. the global diagnosis field); ann[i] = the 3
-    reader labels. Same training/extract/split pattern as run_isic2019.py."""
-    raise NotImplementedError("VinDr-CXR loader stub — see docstring and run_isic2019.py.")
+    reader labels. Same training/extract/split pattern as run_isic2019.py +
+    _train_extract_2d above (replace the patch extraction with the CXR image loader)."""
+    raise NotImplementedError("VinDr-CXR loader stub — mirror load_lidc_idri + _train_extract_2d.")
 
 def load_chexpert(cache_dir):
     """CheXpert: validation set has 3 board-certified radiologist labelings.
     Use those 3 as the reader annotations on the calibration/eval split; train on
-    the (large) train split's majority labels."""
-    raise NotImplementedError("CheXpert loader stub — see docstring and run_isic2019.py.")
+    the (large) train split's majority labels (reuse _train_extract_2d)."""
+    raise NotImplementedError("CheXpert loader stub — mirror load_lidc_idri + _train_extract_2d.")
 
 LOADERS = {"lidc": load_lidc_idri, "vindr": load_vindr_cxr, "chexpert": load_chexpert}
 
