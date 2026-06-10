@@ -57,7 +57,7 @@ class TemperatureScaling(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class PlattScaling(nn.Module):
@@ -272,7 +272,7 @@ class SoftLabelTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class PseudoSoftLabelTS(nn.Module):
@@ -348,7 +348,7 @@ class PseudoSoftLabelTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class LabelSmoothTS(nn.Module):
@@ -401,7 +401,7 @@ class LabelSmoothTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class FixedLabelSmoothTS(nn.Module):
@@ -445,7 +445,7 @@ class FixedLabelSmoothTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class EntropyLabelSmoothTS(nn.Module):
@@ -497,7 +497,7 @@ class EntropyLabelSmoothTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class EMSmoothTS(nn.Module):
@@ -552,7 +552,7 @@ class EMSmoothTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class ClassCondLabelSmoothTS(nn.Module):
@@ -607,7 +607,7 @@ class ClassCondLabelSmoothTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class AdaptiveTempScaling(nn.Module):
@@ -780,7 +780,7 @@ class MonteCarloTS(nn.Module):
 
     @property
     def T(self) -> float:
-        return self.temperature.item()
+        return self.temperature.clamp(min=1e-3).item()
 
 
 class VectorScaling(nn.Module):
