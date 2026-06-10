@@ -202,6 +202,7 @@ def diag_class_structure(probs_by_method: dict, soft_te: np.ndarray,
 # ──────────────────────────────────────────────────────────────────────────────
 
 def diag_lsts_proxy(b: dict) -> dict:
+    K = int(b["n_classes"])
     lc = torch.tensor(b["logits_cal"], dtype=torch.float32)
     p = torch.softmax(lc, 1).numpy()
     yh = b["hard_cal"].astype(int)
@@ -210,12 +211,16 @@ def diag_lsts_proxy(b: dict) -> dict:
     u = 1.0 - soft[idx, yh]          # true disagreement on voted class
     v = 1.0 - p[idx, yh]             # model complement-confidence
     rho = float(np.corrcoef(u, v)[0, 1]) if u.std() > 0 and v.std() > 0 else float("nan")
+    # K-corrected proxy gap g = vbar*(1-1/K) - ubar  (Prop. lsts-valid (ii));
+    # g>0 predicts over-smoothing (T_LS > T_SLTS).
+    g = float(v.mean() * (1.0 - 1.0 / K) - u.mean())
     slts = SoftLabelTS().fit(lc, torch.tensor(soft, dtype=torch.float32))
     lsts = LabelSmoothTS().fit(lc, torch.tensor(yh, dtype=torch.long))
     return {"ubar": float(u.mean()), "vbar": float(v.mean()),
-            "proxy_gap_vbar_minus_ubar": float(v.mean() - u.mean()),
+            "proxy_gap_raw_vbar_minus_ubar": float(v.mean() - u.mean()),
+            "proxy_gap_K_corrected": g,
             "rho_u_v": rho, "T_slts": float(slts.T), "T_lsts": float(lsts.T),
-            "predicted_oversmoothing": bool(v.mean() - u.mean() > 0)}
+            "predicted_oversmoothing": bool(g > 0)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -255,7 +260,7 @@ def _print_report(r: dict) -> None:
 
     d4 = r["D4_lsts_proxy"]
     print(f"\n[D4] LS-TS proxy:  ubar={d4['ubar']:.3f}  vbar={d4['vbar']:.3f}  "
-          f"gap(vbar-ubar)={d4['proxy_gap_vbar_minus_ubar']:+.3f}  rho={d4['rho_u_v']:.3f}")
+          f"g(K-corrected)={d4['proxy_gap_K_corrected']:+.3f}  rho={d4['rho_u_v']:.3f}")
     print(f"     T_SLTS={d4['T_slts']:.2f}  T_LS-TS={d4['T_lsts']:.2f}  "
           f"-> predicted {'OVER' if d4['predicted_oversmoothing'] else 'UNDER'}-smoothing")
 

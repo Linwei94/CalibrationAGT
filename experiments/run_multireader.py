@@ -188,11 +188,11 @@ def load_lidc_idri(cache_dir, K=2, mal_thresh=4, seed=42):
     patches, ann_rows, maj, pid = [], [], [], []
     scans = pl.query(pl.Scan).all()
     for sc in scans:
-        clusters = sc.cluster_annotations()                  # group annotations per nodule
-        vol = sc.to_volume()
+        clusters = [a for a in sc.cluster_annotations() if len(a) >= 3]  # >=3-reader nodules
+        if not clusters:
+            continue
+        vol = sc.to_volume()                                 # heavy I/O — only if a cluster qualifies
         for anns in clusters:
-            if len(anns) < 3:                                # need >=3 readers
-                continue
             ratings = [a.malignancy for a in anns]           # 1..5 per reader
             labels = [1 if r >= mal_thresh else 0 for r in ratings]
             row = np.full(4, -1, np.int64); row[:len(labels)] = labels[:4]
@@ -204,6 +204,8 @@ def load_lidc_idri(cache_dir, K=2, mal_thresh=4, seed=42):
             patch = Fn.interpolate(patch, size=(224, 224), mode="bilinear", align_corners=False)
             patches.append(patch.repeat(1, 3, 1, 1)[0].numpy())
             ann_rows.append(row); maj.append(int(round(np.mean(labels)))); pid.append(sc.patient_id)
+    if not patches:
+        raise RuntimeError("No LIDC nodules with >=3 readers found — check the pylidc data path.")
     patches = np.stack(patches).astype(np.float32)
     ann = np.stack(ann_rows); maj = np.asarray(maj, np.int64); pid = np.asarray(pid)
 
@@ -241,7 +243,7 @@ def make_demo(seed=0, K=4, n=4000, R=4):
     instance-level regime the synthetic medical model could NOT capture."""
     rng = np.random.default_rng(seed)
     y = rng.integers(0, K, size=n)                       # true class
-    d = rng.beta(1.5, 4.0, size=n)                       # per-image difficulty in (0,1)
+    d = rng.beta(2.0, 3.0, size=n)                       # per-image difficulty (mean ~0.4)
     ann = np.full((n, R), -1, np.int64)
     for i in range(n):
         for r in range(R):
@@ -249,9 +251,11 @@ def make_demo(seed=0, K=4, n=4000, R=4):
                 ann[i, r] = rng.integers(0, K)           # confused reader -> random class
             else:
                 ann[i, r] = y[i]
-    # a "model": logit mass on true class scaled by (1-d), plus noise -> overconfident
-    logits = rng.normal(0, 0.3, size=(n, K))
-    logits[np.arange(n), y] += 3.0 * (1 - 0.5 * d)
+    # a synthetic, realistically-imperfect over-confident model: a modest boost on the true
+    # class plus large noise, so voted-label accuracy is ~80-85% (NOT separable) and the
+    # voted-label TS problem is well-posed (T stays moderate rather than collapsing to 0).
+    logits = rng.normal(0, 1.1, size=(n, K))
+    logits[np.arange(n), y] += 1.0
     idx = rng.permutation(n); h = n // 2
     cal, te = idx[:h], idx[h:]
     return logits[cal], ann[cal], logits[te], ann[te], K

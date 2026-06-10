@@ -99,16 +99,22 @@ def load_llm(name):
     return model, tok, dev
 
 def option_logits(model, tok, dev, prompt, options):
-    """LLM-induced logits over a fixed option set via first-token log-prob of each option."""
-    ids = tok(prompt, return_tensors="pt").to(dev)
-    with torch.no_grad():
-        last = model(**ids).logits[0, -1].float()
-    logp = torch.log_softmax(last, -1)
+    """LLM-induced logits over a fixed option set: the total (teacher-forced) log-prob
+    of each option string given the prompt, summed over the option's tokens. Scoring
+    the full sequence (not just the first token) avoids collisions between options that
+    share a first token or span multiple tokens."""
+    base = tok(prompt, return_tensors="pt").input_ids.to(dev)
     vals = []
-    for o in options:
-        t = tok(" " + o, add_special_tokens=False).input_ids
-        vals.append(float(logp[t[0]]))      # first-token log-prob as the option score
-    return np.array(vals, dtype=np.float32)  # used as logits (softmax recovers a distribution)
+    with torch.no_grad():
+        for o in options:
+            ot = tok(" " + o, add_special_tokens=False).input_ids
+            seq = torch.cat([base, torch.tensor([ot], device=dev)], dim=1)
+            lp = torch.log_softmax(model(seq).logits[0].float(), -1)
+            s = 0.0
+            for j, tid in enumerate(ot):                  # log p(token_j | prompt, token_<j)
+                s += float(lp[base.shape[1] + j - 1, tid])
+            vals.append(s)
+    return np.array(vals, dtype=np.float32)               # used as logits (softmax => distribution)
 
 def _norm(s):
     s = s.lower().strip()
@@ -142,9 +148,8 @@ def run_labelset(items, model=None, tok=None, dev=None):
         soft.append(np.asarray(it["pi"], np.float32))
         if model is not None:
             logits.append(option_logits(model, tok, dev, it["prompt"], it["options"]))
-        else:                       # demo: synthetic over-confident LLM logits
-            pi = np.asarray(it["pi"], np.float32)
-            logits.append(np.log(pi + 1e-3) * 1.8)   # sharpened -> over-confident
+        else:                       # demo: synthetic over-confident, NON-separable logits
+            logits.append(np.asarray(it["_demo_logits"], np.float32))
     logits = np.stack(logits); soft = np.stack(soft)
     voted = soft.argmax(1).astype(np.int64)
     return calibrate_and_report(logits, soft, voted, K, "LLM label-set (NLI/MCQA)")
@@ -185,7 +190,11 @@ def demo_labelset(seed=0, n=400, K=3):
     items = []
     for _ in range(n):
         a = rng.dirichlet(np.ones(K) * rng.choice([0.4, 2.0]))   # mix sharp + ambiguous
-        items.append({"prompt": "demo", "options": [f"c{k}" for k in range(K)], "pi": a.tolist()})
+        # synthetic over-confident model: sharpen log-pi and add noise so the logits are
+        # NOT a monotone function of pi (avoids a perfectly separable voted-label problem).
+        z = (np.log(a + 1e-6) + rng.normal(0, 0.8, K)) / 0.55
+        items.append({"prompt": "demo", "options": [f"c{k}" for k in range(K)],
+                      "pi": a.tolist(), "_demo_logits": z.tolist()})
     return items
 
 def demo_openvocab(seed=0, n=400, R=5):
