@@ -89,6 +89,12 @@ def fit_all_methods(b: dict) -> dict:
     ir = SoftIsotonicRegression().fit(probs_cal_np, b["soft_cal"])
     probs_te_np = torch.softmax(torch.tensor(lt, dtype=torch.float32), 1).numpy()
     cal_conf, pred = ir.calibrate(probs_te_np)
+    # IR-Soft is a top-class confidence remap; we represent it as a full vector by
+    # spreading (1-cal_conf) uniformly over the other K-1 classes. NOTE: when
+    # cal_conf < 1/K (rare; ~0% on CIFAR-10H/DermaMNIST, 3/23651 on ImageNet-ReaL) the
+    # predicted class is no longer the argmax of pir, since no valid simplex can keep a
+    # below-uniform predicted-class mass as the maximum. ECE_true is unaffected in
+    # practice; for a strict top-1 treatment use metrics.compute_ece_from_conf(cal_conf,pred,.).
     pir = np.zeros_like(probs_te_np)
     for i in range(len(probs_te_np)):
         pir[i, pred[i]] = cal_conf[i]
